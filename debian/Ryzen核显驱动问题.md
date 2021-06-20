@@ -72,6 +72,31 @@ linux-image-内核版本号-amd64-dbg
 linux-image-内核版本号-cloud-amd64
 linux-image-内核版本号.bpo.xx-amd64
 ...
+
+# 以下是部分示例
+linux-image-5.10.0-0.bpo.3-amd64/buster-backports 5.10.13-1~bpo10+1 amd64
+
+linux-image-5.10.0-0.bpo.3-cloud-amd64/buster-backports 5.10.13-1~bpo10+1 amd64
+
+linux-image-5.10.0-0.bpo.3-rt-amd64/buster-backports 5.10.13-1~bpo10+1 amd64
+
+linux-image-5.10.0-0.bpo.4-amd64/buster-backports 5.10.19-1~bpo10+1 amd64
+
+linux-image-5.10.0-0.bpo.4-cloud-amd64/buster-backports 5.10.19-1~bpo10+1 amd64
+
+linux-image-5.10.0-0.bpo.4-rt-amd64/buster-backports 5.10.19-1~bpo10+1 amd64
+
+linux-image-5.10.0-0.bpo.5-amd64/buster-backports 5.10.24-1~bpo10+1 amd64
+
+linux-image-5.10.0-0.bpo.5-cloud-amd64/buster-backports 5.10.24-1~bpo10+1 amd64
+
+linux-image-5.10.0-0.bpo.5-rt-amd64/buster-backports 5.10.24-1~bpo10+1 amd64
+
+linux-image-5.10.0-0.bpo.7-amd64/buster-backports 5.10.40-1~bpo10+1 amd64
+
+linux-image-5.10.0-0.bpo.7-cloud-amd64/buster-backports 5.10.40-1~bpo10+1 amd64
+
+linux-image-5.10.0-0.bpo.7-rt-amd64/buster-backports 5.10.40-1~bpo10+1 amd64
 ```
 
 `bpo` 是backports源软件包
@@ -84,15 +109,30 @@ linux-image-内核版本号.bpo.xx-amd64
 
 `dbg` 这个包用于调试，不是内核本身，只是符号相关的文件，我们也用不上。
 
-选取一个5.x版本的内核，仅有`amd64`后缀的，没有`dbg`后缀的软件包安装。
-
-显卡、无线网卡、部分网卡，不仅需要内核模块，还需要加载firmware才能正常工作,安装firmware软件包：
+选取一个5.x版本的内核，仅有`amd64`后缀的，没有`dbg`后缀的软件包安装。例如安装**linux-image-5.10.0-0.bpo.7-amd64**
 
 ```bash
-$ sudo apt install firmware-linux-nonfree
+apt install linux-image-5.10.0-0.bpo.7-amd64
 ```
 
-> 如果是很新的平台，例如刚发布的apu，可能debian的固件中并未包含新硬件相关固件，需要去同步`linux-firmware.git`仓库，获取更新一些的firmware安装到本机。[北外语镜像站同步的linux-firmware.git](https://mirrors.bfsu.edu.cn/help/linux-firmware.git/), [linux-firmware.git](https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git)，根据需要使用。
+显卡、无线网卡、部分网卡，不仅需要内核模块，还需要加载firmware才能正常工作,安装firmware软件包，先查看候选版本：
+
+```bash
+# apt -a  list  firmware-linux-nonfree
+Listing... Done
+firmware-linux-nonfree/buster-backports 20210315-2~bpo10+1 all
+firmware-linux-nonfree/stable 20190114-2 all
+```
+
+可以看到有两个同名的包，安装**buster-backports**的
+
+```bash
+apt install firmware-linux-nonfree/buster-backports
+```
+
+
+
+> 如果是较新新的平台，例如刚发布的apu，可能debian的固件中并未包含新硬件相关固件，需要去同步`linux-firmware.git`仓库，获取更新一些的firmware安装到本机。[北外语镜像站同步的linux-firmware.git](https://mirrors.bfsu.edu.cn/help/linux-firmware.git/), [linux-firmware.git](https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git)，根据需要使用。
 
 安装固件和新内核完毕后重启，开机后在grub菜单中选择新内核启动，使用`uname -r` 验证运行的内核版本。
 
@@ -179,7 +219,7 @@ $ sudo less /var/log/Xorg.0.log
 
 ```bash
 $ sudo apt install mate-desktop-environment lightdm
-``` 
+```
 
 `debian 10` 使用systemd作为init管理系统，重启lightdm服务
 
