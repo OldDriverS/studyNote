@@ -2,7 +2,9 @@
 
 ## *nft describe*
 
-您可以使用`nft describe`获取有关数据类型的信息，找出特定选择器的数据类型，并为该选择器列出预定义的符号常量。一些例子:
+您可以使用`nft describe`获取有关数据类型的信息，找出特定选择器的数据类型，并为该选择器列出预定义的符号常量。
+
+例如：
 
 ```
 % nft describe iif
@@ -25,42 +27,42 @@ pre-defined symbolic constants (in hexadecimal):
         cwr                             0x80
 ```
 
+
+
 ## List of data types
 
-
-
-### 日期与时间类型
+### Date and time types（日期与时间类型）
 
 | 数据类型 | 描述                                                         | 表达式                                                       | 备注                                                         |
 | :------: | :----------------------------------------------------------- | :----------------------------------------------------------- | :----------------------------------------------------------- |
-|   day    | 接受数据包的星期 (8位整数, with pre-defined symbolic constants)：<br>*Sunday*<br/> *Monday<br/>* *Tuesday* <br/>*Wednesday* <br/>*Thursday<br/>* *Friday* <br/>*Saturday* | [*meta day*](https://wiki.nftables.org/wiki-nftables/index.php/Matching_packet_metainformation) | *Sunday* = 0, *Saturday* = 6.<br/>符号常量不区分大小写, 接受独特的缩写: *Sun* = *sun* = *Sunday* = 0. |
-|   hour   | 接收数据包的时间 (32位整数).指定为24小时格式的字符串, hh:mm[:ss]. | [*meta hour*](https://wiki.nftables.org/wiki-nftables/index.php/Matching_packet_metainformation) | 秒是可选的: *17:00* = *17:00:00*.                            |
+|   day    | 接受数据包的星期 (8位整数, with pre-defined symbolic constants)：<br>*Sunday*<br/> *Monday<br/>* *Tuesday* <br/>*Wednesday* <br/>*Thursday<br/>* *Friday* <br/>*Saturday* | [*meta day*](https://wiki.nftables.org/wiki-nftables/index.php/Matching_packet_metainformation) | *Sunday* = 0, *Saturday* = 6.<br/>符号常量不区分大小写, 接受独特的缩写: *Sun* = *sun* = *Sunday* = 0 |
+|   hour   | 接收数据包的时间 (32位整数).指定为24小时格式的字符串, hh:mm[:ss]. | [*meta hour*](https://wiki.nftables.org/wiki-nftables/index.php/Matching_packet_metainformation) | 秒是可选的: *17:00* = *17:00:00*                             |
 |   time   | 接收包的相对时间 (64位整数).                                 | [*meta time*](https://wiki.nftables.org/wiki-nftables/index.php/Matching_packet_metainformation) | 可以指定为ISO格式的日期。<br/>例如， "2019-06-06 17:00"。小时和秒是可选的，如果需要可以省略。如果省略，将假定为午夜。<br/>下面三个是等价的： "2019-06-06" = "2019-06-06 00:00" = "2019-06-06 00:00:00"。当指定一个整数时，假定它是一个UNIX时间戳。 |
 
 
 
-### Network interface types
+### Network interface types（网络接口类型）
 
-|  数据类型   | 描述                                                         | 表达式                                                       | 备注                                                         |
-| :---------: | :----------------------------------------------------------- | :----------------------------------------------------------- | :----------------------------------------------------------- |
-|  devgroup   | Device group (32位整数).                                     | [*meta* {*iifgroup* \| *oifgroup*}](https://wiki.nftables.org/wiki-nftables/index.php/Matching_packet_metainformation) | 可以用/etc/iproute2/group中数字或符号名称来指定.             |
-| iface_index | 网络接口索引 (32位无符号整数).                               | [*meta* {*iif* \| *oif*}](https://wiki.nftables.org/wiki-nftables/index.php/Matching_packet_metainformation) | 可以用数字或现有接口的名称指定。<br/>对于名称或索引可能被更改的网络接口（interface），请使用*ifname* (例如动态增加或删除的接口). |
-| iface_type  | 网络接口类型 (16 bit integer, with pre-defined symbolic constants):*ether* *ppp* *ipip* *ipip6* *loopback* *sit* *ipgre* | [*meta* {*iiftype* \| *oiftype*}](https://wiki.nftables.org/wiki-nftables/index.php/Matching_packet_metainformation) |                                                              |
-|   ifkind    | 接口类名称 (16位字符串).                                     | [*meta* {*iifkind* \| *oifkind*}](https://wiki.nftables.org/wiki-nftables/index.php/Matching_packet_metainformation) | dev->rtnl_link_ops->kindThe 。<br/>`man 8 ip-link` TYPES 部分列出了有效的**ifkinds**.它至少少了一个: *tun*。 |
-|   ifname    | Interface name (16 byte string).                             | [*meta* {*iifname* \| *oifname*}](https://wiki.nftables.org/wiki-nftables/index.php/Matching_packet_metainformation) | 不一定要存在。<br/>比*iface_index*慢，但对于可以动态加载的网络接口来说很好。 |
+|  数据类型   | 描述                                                         | 表达式                             | 备注                                                         |
+| :---------: | :----------------------------------------------------------- | :--------------------------------- | :----------------------------------------------------------- |
+|  devgroup   | 设备分组 (32位整数).                                         | *meta* {*iifgroup* \| *oifgroup* } | 可以用/etc/iproute2/group中定义的数字或符号名称来指定        |
+| iface_index | 网络接口索引 (32位无符号整数).                               | *meta* {*iif* \| *oif*}            | 可以用数字或现有接口的名称指定。<br/>对于名称或索引可能被更改的网络接口（interface），请使用*ifname* (例如动态增加或删除的接口). |
+| iface_type  | 网络接口类型 (16 bit integer, with pre-defined symbolic constants):*ether* *ppp* *ipip* *ipip6* *loopback* *sit* *ipgre* | *meta*  {*iiftype* \| *oiftype*}   |                                                              |
+|   ifkind    | 接口类名称 (16位字符串).                                     | *meta* {*iifkind* \| *oifkind*}    | dev->rtnl_link_ops->kindThe 。<br/>使用命令查看手册（`man 8 ip-link`）中**TYPES*** 部分列出了有效的 **ifkinds**。（它至少少了一个: *tun*）。 |
+|   ifname    | Interface name (16 byte string).                             | *meta* {*iifname* \| *oifname*}    | 不一定要存在。<br/>比*iface_index*慢，但对于可以动态加载的网络接口来说很好。 |
 
 
 
-### Ethernet types
+### Ethernet types（以太网数据类型）
 
 |  数据类型  | 描述                                                         | 表达式                                                       | 备注                                                         |
 | :--------: | :----------------------------------------------------------- | :----------------------------------------------------------- | :----------------------------------------------------------- |
 | ether_addr | Ethernet address (48 bit integer).                           | ether {saddr \|daddr}<br>arp {saddr \|daddr} ether           |                                                              |
-| ether_type | [EtherType](https://en.wikipedia.org/wiki/EtherType) (16位长度整数, 使用预定义的常量，值是确定的):*arp* *ip* *ip6* *vlan* | [*meta protocol*](https://wiki.nftables.org/wiki-nftables/index.php/Matching_packet_metainformation) | [ether.h](https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/tree/include/uapi/linux/if_ether.h) 列出已知类型。<br/>注意：**ether.h**按网络顺序列出EtherTypes，而**nft**在x86上使用little-endian顺序。(检查 `nft describe ether_type`的输出) |
+| ether_type | [EtherType](https://en.wikipedia.org/wiki/EtherType) (16位长度整数, 使用预定义的常量，值是确定的):*arp* *ip* *ip6* *vlan* | [*meta protocol*](https://wiki.nftables.org/wiki-nftables/index.php/Matching_packet_metainformation) | [ether.h](https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/tree/include/uapi/linux/if_ether.h) 列出已知类型。<br/>注意：**ether.h**按网络顺序列出**EtherTypes**，而*nft*在x86上使用little-endian顺序。(检查 `nft describe ether_type`的输出) |
 
 
 
-### ARP types
+### ARP types（ARP数据类型）
 
 |              |                                                              |                                                              |                                                              |
 | :----------: | :----------------------------------------------------------- | :----------------------------------------------------------- | :----------------------------------------------------------- |
@@ -72,7 +74,7 @@ pre-defined symbolic constants (in hexadecimal):
 
 
 
-### IP types
+### IP types（IP数据类型）
 
 |              |                                                              |                                                              |                                                              |
 | :----------: | :----------------------------------------------------------- | :----------------------------------------------------------- | :----------------------------------------------------------- |
@@ -82,13 +84,25 @@ pre-defined symbolic constants (in hexadecimal):
 |  ipv4_addr   | IPv4 地址(32位长度整数).                                     | ip {saddr \|daddr}<br>arp {saddr \|daddr} ip<br>ct {original \|reply} ip {saddr \|daddr}<br>rt ip nexthop<br>ipsec {in \| out} ip {saddr \|daddr} |                                                              |
 |  ipv6_addr   | IPv6 地址(128位长度整数).                                    | ip6 {saddr \|daddr}<br/>ct {original \| reply} ip6 {saddr \|daddr}<br/>rt ip6 nexthop<br/>ipsec {in \|out} ip6 {saddr \|daddr} |                                                              |
 
-### Conntrack types
+### Conntrack types（链接跟踪数据类型）
 
 | **数据类型** | **描述**                          | **表达式** | **备注**                                                     |
 | :----------: | --------------------------------- | :--------- | :----------------------------------------------------------- |
-|    ct_dir    | 链接跟踪的方向(8位长度的整数).    |            | Symbolic constants:<br>original       0 <br/>reply          1 |
-|   ct_event   | 链接跟踪事件位 (4位长度的位掩码). |            | Symbolic constants:<br>new            1 <br/>related        2<br/> destroy        4 <br/>reply          8 <br/>assured       16 <br/>protoinfo     32<br/> helper        64 <br/>mark         128 <br/>seqadj       256<br/> secmark      512<br/> label       1024 |
+|    ct_dir    | 链接跟踪的方向(8位长度的整数).    |            | 符号常量与对应的常量值：<br>original       0 <br/>reply          1 |
+|   ct_event   | 链接跟踪事件位 (4位长度的位掩码). |            | 符号常量与对应的常量值：<br>new            1 <br/>related        2<br/> destroy        4 <br/>reply          8 <br/>assured       16 <br/>protoinfo     32<br/> helper        64 <br/>mark         128 <br/>seqadj       256<br/> secmark      512<br/> label       1024 |
 |   ct_label   | Conntrack label (128位的位掩码).  |            |                                                              |
-|   ct_state   | Conntrack state(4字节位掩码).     |            | Symbolic constants:<br/>invalid        1 <br/>established    2 <br/>related        4<br/> new            8 <br/>untracked     64 |
-|  ct_status   | Conntrack status (4字节位掩码).   |            | Symbolic constants:<br>expected       1<br> seen-reply     2 <br>assured        4 <br>confirmed      8<br/> snat          16 <br/>dnat          32 <br/>dying        512 |
+|   ct_state   | Conntrack state(4字节位掩码).     |            | 符号常量与对应的常量值：<br/>invalid        1 <br/>established    2 <br/>related        4<br/> new            8 <br/>untracked     64 |
+|  ct_status   | Conntrack status (4字节位掩码).   |            | 符号常量与对应的常量值：<br>expected       1<br> seen-reply     2 <br>assured        4 <br>confirmed      8<br/> snat          16 <br/>dnat          32 <br/>dying        512 |
+
+
+
+### Other types（其他数据类型）
+
+| **数据类型** | **描述**                                                     | **表达式**                                                   | **备注**                                                     |
+| :----------: | :----------------------------------------------------------- | :----------------------------------------------------------- | :----------------------------------------------------------- |
+|     gid      | 用户组ID (32位整数).                                         | *meta skgid*                                                 | 可以使用用户组的GID数值或用户组名称指定                      |
+|     mark     | 数据包的标记 (32 bit integer).                               | *meta mark* <br>*socket mark* <br>*fib mark .  * {*saddr* \| *daddr* \| *iif* \| *oif*} [. ...\] { *oif* \| *oifname* \| *type*}<br>*ct mark* |                                                              |
+|   pkt_type   | 数据包的类型(8位整数，带有预定义的符号常量): <br>*host* 或 *unicast* - 发送给主机的（单播）<br>*broadcast* - 发送给所有主机（广播包）<br>*multicast* - 发送给分组的（组播）<br>*other* - 发送给其他主机 | *meta pkttype*                                               |                                                              |
+|    realm     | Routing Realm (32 bit integer).                              | *meta rtclassid*                                             | 使用数字或者在**/etc/iproute2/rt_realms**中定义的符号。路由表的域表定义在:[linux-ip.net](http://linux-ip.net/gl/ip-cref/ip-cref-node172.html)[policyrouting.org](http://www.policyrouting.org/PolicyRoutingBook/ONLINE/CH07.web.html) |
+|     uid      | Linux 用户ID(32位长度整数).                                  | *meta skuid*                                                 | 可以使用UID数值或者用户名指定。                              |
 
