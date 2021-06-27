@@ -1,12 +1,12 @@
 # 配置chain（链）
 
-与iptables一样，使用nftables可以将规则（rule）附加到链(chain)上。与iptables不同，它没有预定义的INPUT、OUTPUT等链。相反，为了在特定的处理步骤中过滤数据包，您可以显式地创建一个带有您所选择名称的基链（**base chain**），并将它附加到适当的钩子（**hook**）上。这允许非常灵活的配置，而不会用你的规则集不需要的内置链减慢Netfilter。
+与iptables一样，使用nftables可以将规则（rule）附加到链(chain)上。与iptables不同，nftables没有预定义的INPUT、OUTPUT等链。相反，为了在特定的处理步骤中过滤数据包，您可以显式地创建一个带有您自定义名称的基链（**base chain**），并将它附加到适当的钩子（**hook**）上。这允许非常灵活的配置，而且不会因为你的规则集中包含了不需要的内置链减慢Netfilter。
 
 
 
 ## 添加基链（ base chain）
 
-**base chains **是那些注册到Netfilter钩子（ [hooks](https://wiki.nftables.org/wiki-nftables/index.php/Netfilter_hooks)）的链，也就是说，这些链监控流经你的Linux TCP/IP堆栈的数据包。
+**base chains **是那些注册到Netfilter钩子（ [hooks](https://wiki.nftables.org/wiki-nftables/index.php/Netfilter_hooks)）的链，也就是说，这些链检查流经你的Linux TCP/IP堆栈的数据包。
 
 添加基链的语法是：
 
@@ -22,17 +22,17 @@
 % nft 'add chain ip foo input { type filter hook input priority 0 ; }'
 ```
 
-重点：*nft*重用特殊字符，如花括号`{}`和分号`;`。如果是从bash等shell运行这些命令，需要转义所有特殊字符。防止shell试图解析nft语法的最简单方法是在单引号包裹后续的参数。也可以执行该命令进入交互模式：
+重点：*nft* 重用特殊字符，如花括号`{}`和分号`;`。如果是从bash等shell运行这些命令，需要转义所有特殊字符。防止shell试图解析nft语法，最简单方法是在单引号包裹后续的参数。也可以执行该命令进入交互模式：
 
 ```bash
 % nft -i
 ```
 
-并在交互模式下运行非功能性测试。
+交互模式下运行非功能性测试。
 
-*add chain* 添加 **input** 链,它绑定 *input hook* ,这个链将在input钩子检查点处，处理流往本机的数据包。
+*add chain* 添加 **input** 链,它绑定 *input hook* ,这个链将在input钩子检查点处，按其包含的规则处理流往本机的数据包。
 
-*priority* 很重要，因为它决定了链的顺序。因此，如果你在*input hook*中有几个链,你可以决定哪个链优先级更高。例如，**input**链的优先级-12、-1、0、10将按照该顺序进行查找。有可能将两个基本链作为相同的优先级,但没有保证的基本链的评价顺序,并将其固定在相同的钩子位置上。
+*priority* （优先级）很重要，因为它决定了链的顺序。因此，如果你在 *input hook* 中有几个链,可以通过优先级属性的数值决定哪个链优先级更高。例如，**input**链的优先级-12、-1、0、10将按照该顺序进行查找。有可能两个基本链优先级相同,但没有保证的基本链的顺序,并将其固定在相同的钩子位置上。
 
 如果想使用 *nftables* 来过滤桌面Linux计算机的流量（即不转发流量的计算机），也可以注册 *output* 链:
 
@@ -40,21 +40,21 @@
 % nft 'add chain ip foo output { type filter hook output priority 0 ; }'
 ```
 
-现在您已经准备好过滤传入的(流往本地)和外向(从本地往外)流量。
+现在已经准备好过滤`传入的`(流往本地)和`流出的`(从本地往外)流量。
 
 重要注意：
 
-如果您不包括在花括号中指定的链配置（未指定链的类型、对应的hook以及优先级），那么您创建的是一个常规链（**regular chain**）,它不会处理任何数据包(类似于 *iptables -N chain-name* )。常规链不会绑定到特定的hook上，它需要在基链中被跳转（jump）才能使用。
+如果未在花括号中指定的链配置（未指定链的类型、对应的hook以及优先级），那么您创建的是一个常规链（**regular chain**）,它不会处理任何数据包(类似于 *iptables -N chain-name* )。常规链不会绑定到特定的hook上，它需要在基链中被跳转（jump）才能使用。
 
-从nftables 0.5开始，你也可以像在iptables中一样为基链指定默认过滤策略（policy）:
+从nftables 0.5开始，你也可以像在iptables中一样为基链指定默认过滤策略（*policy*）:
 
 ```
 % nft 'add chain ip foo output { type filter hook output priority 0 ; policy accept; }'
 ```
 
-默认策略（*policy*）取值可能是 *accept* 和 *drop*，这与iptables一致。
+默认策略（*policy*）取值可能是 *accept* 和 *drop*，与iptables一致。
 
-本链中所有的规则都匹配不成功时，按默认策略处理数据包，若*policy*为*drop*将丢弃数据包，如为 *accept* 则该数据包继续流入到下个低优先级的基链继续遍历。当这个检查点（hook）中关联的所有基链规则均 *accept* 时，数据包进入下一个检查点（hook）,如果有一个链拦截了数据包，那它将直接被抛弃，不进入后续的链中匹配规则。
+本链中所有的规则均匹配失败时，按默认策略处理数据包，若 *policy* 为 *drop* 将丢弃数据包，如为 *accept* 则该数据包继续流入到下个低优先级的基链继续遍历。当这个检查点（hook）中关联的所有基链规则均 *accept* 时，数据包进入下一个检查点（hook）,如果有一个基链拦截了数据包，那它将直接被抛弃，不进入后续的链中匹配规则。
 
 **ingress** 钩子上添加链时，必须指定该链将被绑定网卡设备**eth0**:
 
@@ -69,12 +69,8 @@
 基链的类型可能是以下的：
 
 - **filter** ，用于过滤数据包。arp、bridge、ip、ip6和inet协议簇族的表均支持。
-
 - **route**，如果任何相关的IP报头（header）字段或包标记（packet mark）被修改，则用于重新路由数据包。如果熟悉iptables，则此链类型提供了与mangle表相同的语义，但仅用于 *output hook* (对于其他hook，应该使用*filter* 代替)。ip、ip6和inet协议簇的表均支持。
-
 - **nat**，用于进行网络地址转换(NAT)。只有给定流的第一个包到达此链；随后的数据包将绕过它。因此，不要使用此链进行过滤。支持 *nat* 链类型的协议簇有ip、ip6和inet。
-
-    
 
 ### 基链的钩子（Base chain hooks）
 

@@ -2,23 +2,23 @@
 
 
 
-Netfilter允许在多个网络级别上进行过滤。相对于iptables，每个级别都有一个单独的工具:iptables, ip6tables, arptables, ebtables。使用nftables，多个网络级别被抽象成**families**，所有这些级别都由单一工具`nft`提供服务。
+Netfilter允许在多个网络级别上进行过滤。相对于iptables每个级别都有一个单独的工具:iptables, ip6tables, arptables, ebtables。使用nftables，多个网络级别被抽象成协议簇（**families**），所有这些级别都由单一工具`nft`提供服务。
 
 请注意，您看到的流量/数据包（traffic/packets）以及在网络堆栈中的位置取决于您正在使用的[**hook**](https://wiki.nftables.org/wiki-nftables/index.php/Netfilter_hooks)（钩子）。
 
 ## ip
 
-这个族的表参见 [IPv4](https://en.wikipedia.org/wiki/IPv4)流量/报文。`iptables`工具是遗留的 x_tables 等价工具。
+这个簇的表参见 [IPv4](https://en.wikipedia.org/wiki/IPv4)流量/报文。*iptables* 工具是遗留的 x_tables 的等价工具。
 
 ## ip6
 
- [IPv6](https://en.wikipedia.org/wiki/IPv6)流量/报文族表。ip6tables工具是遗留的x_tables等价工具。
+ 这个簇的表用于检查 [IPv6](https://en.wikipedia.org/wiki/IPv6)流量/数据包。ip6tables工具是遗留的x_tables等价工具。
 
 ## inet
 
-这个家族的表可以看到IPv4和IPv6流量/数据包，简化了双栈支持。
+这个协议簇的表可以用于检查IPv4和IPv6流量/数据包，简化了双栈支持。
 
-在inet协议簇的一个表中，IPv4和IPv6数据包遍历相同的规则。IPv4数据包规则不影响IPv6数据包。这两个三层协议（L3 protocols）的规则都影响这两个协议。
+在 *inet* 簇的一个表中，IPv4和IPv6数据包遍历相同的规则。IPv4数据包规则不影响IPv6数据包。匹配两者三层协议（L3 protocols ）的规则将都影响。
 
 例子：
 
@@ -38,7 +38,7 @@ nft add rule inet filter input udp dport 53 accept
 
 ## arp
 
-这个协议簇的表在内核完成任何三层处理之前看到arp级(即二层)流量。arptables工具是遗留的 x_tables 等价工具。
+这个协议簇的表在内核完成任何三层处理之前看到arp级别（ [ARP](https://en.wikipedia.org/wiki/Address_Resolution_Protocol)-level）（例如二层协议）流量。arptables工具是遗留的 x_tables 等价工具。
 
 ## bridge
 
