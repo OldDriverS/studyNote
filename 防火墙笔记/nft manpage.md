@@ -210,7 +210,7 @@ delete **table** [ *family* ] handle *handle*
 
 | Flag    | 说明                                            |
 | ------- | ----------------------------------------------- |
-| dormant | 表不再计算(基链未注册) （译注：暂时禁用这个表） |
+| dormant | 表不再计算(基链被卸载) （译注：暂时禁用这个表） |
 
 
 
@@ -263,15 +263,15 @@ rename **chain** [ *family* ] *table* *chain* *newname*
 
 对于基链，**type**， **hook** 和 **priority**  参数是必需的。
 
-支持的链类型（type）有
+基链支持的类型（type）有
 
-|  类型  | Families |                      钩子<br>（Hooks） | 描述                                                         |
-| :----: | -------: | -------------------------------------: | ------------------------------------------------------------ |
-| filter |      all |                                    all | 标准链型使用是存疑的。                                       |
-|  nat   |  ip, ip6 | prerouting, input, output, postrouting | 这种类型的链基于连接跟踪表项（conntrack entries）执行网络地址转换（ Network Address Translation）。只有连接的第一个包真正遍历这个链—它的规则通常定义创建的连接跟踪条目的细节(例如NAT语句)。 |
-| route  |  ip, ip6 |                                 output | 如果一个包已经遍历了这种类型的链并且即将被接受，那么如果IP报头的相关部分发生了变化，将执行一个新的路由查找。例如这将允许在nftables中实现策略路由选择器。 |
+| 类型（*Type*） | 簇（Families） |           钩子<br>（Hooks）            | 描述                                                         |
+| :------------: | :------------: | :------------------------------------: | ------------------------------------------------------------ |
+|     filter     |      all       |                  all                   | 在标准链型使用是存疑的。                                     |
+|      nat       |    ip, ip6     | prerouting, input, output, postrouting | 这种类型的链基于连接跟踪表项（conntrack entries）执行网络地址转换（ Network Address Translation）。只有连接的第一个包真正遍历这个链—它的规则通常定义创建的连接跟踪条目的细节(例如NAT语句)。 |
+|     route      |    ip, ip6     |                 output                 | 如果一个包已经遍历了这种类型的链并且即将被接受，那么如果IP报头的相关部分发生了变化，将执行一个新的路由查找。例如，这将允许在nftables中实现策略路由选择器。 |
 
-除了上述的特殊情况(例如 *nat* 类型不支持 **forward** 钩子，**route** 类型只支持 **output** 钩子)，还有两个特殊情况值得注意：
+除了上述的特殊情况（例如 *nat* 类型不支持 **forward** 钩子，**route** 类型只支持 **output** 钩子），还有两个特殊情况值得注意：
 
 - netdev 簇只支持单一的组合，即 *type filter* 和  *hook ingress*。这个family中的基链也要求设备参数存在，因为它们只存在于每个网络设备入口（incoming interface）上。
 
@@ -297,7 +297,7 @@ delete **rule** [ *family* ] *table* *chain* handle *handle*
 
 **add** 和 **insert** 命令支持一个可选的位置指示符，它要么是现有规则的句柄（ *handle* ），要么是一个范围从0开始的索引（ *index*）。在内部，规则位置总是由 *handle* 确定，而且 *handle* 转换成 *index* 的转换发生在用户空间。如果在转换完成后发生并发规则集（ruleset ）更改，这有两个潜在的含义：
 
-- 如果在引用的规则之前插入或删除了规则，则有效的规则索引可能会发生变化。
+- 如果在引用的规则之前插入或删除了规则，则有效的规则索引值可能会发生变化。
 - 如果删除被引用的规则，此条命令将被内核会拒绝，就像抛出了一个无效的 *handle* 一样。
 
 | 规则操作命令 | 说明                                                         |
@@ -353,7 +353,7 @@ nft 'add rule filter input ip saddr { 10.0.0.0/8, 192.168.0.0/16 } tcp dport { 2
  nft add rule filter input ip saddr @allowed_hosts tcp dport @allowed_ports accept
 ```
 
-首先需要创建  *allowed_hosts* 和 *allowed_ports* 集合。下一节将更详细地描述 **nft** 集合相关的语法。
+首先需要创建  *allowed_hosts* 和 *allowed_ports* 集合。下一节将更详细地描述 **nft** 集合（**Set**）相关的语法。
 
 add **set**  [ *family* ] *table* *set* { type *type*; [ flags *flags*; ] [timeout *timeout*; ] [ gc-interval *gc-interval*; ] [ elements = { *element*[ ,... ] }; ] [ size *size*; ] [ policy *policy*; ] [ auto-merge *auto-merge*; ] }
 
@@ -405,8 +405,211 @@ add **map** [*family*] *table* *map* { type *type* [flags *flags* ;] [elements =
 | -------- | ---------------------- | ------------------------------------------------------------ |
 | type     | 映射元素的数据类型     | string ':' string: ipv4_addr, ipv6_addr, ether_addr, inet_proto, inet_service, mark, counter, quota. Counter and quota can't be used as keys |
 | flags    | 映射表的标识配置       | string: constant, interval                                   |
-| elements | 映射表中包含的元素     | map data type                                                |
+| elements | 映射表中包含的元素     | 映射表元素的数据类型。                                       |
 | size     | 映射表中的最大元素个数 | 无符号整数 (64 bit)                                          |
 | policy   | 映射表的默认策略       | string: performance [default], memory                        |
-|          |                        |                                                              |
+
+
+
+## 流表（FLOWTABLES）
+
+{ add | create } **flowtable** [ *family* ] *table* *flowtable* { hook *hook* priority *priority* ; devices = { *device*[,...] } ; }
+
+{ delete | list } **flowtable** [ *family* ] *table* *flowtable*
+
+流表（flowtable）允许您在软件中加速数据包转发。流表的条目（entry）通过一个元组（tuple）表示，该元组由输入接口（input interface）、源地址及目的地址（source and destination address）、源端口和目的端口（source and destination port）组成;属于3/4层协议。每个条目还缓存了目的网络接口和网关地址。用于更新目的链路层地址。用于转发数据包。TTL数值及hoplimit字段会被衰减。因此，流表提供了另一种路径，允许数据包绕过传统的转发路径。
+
+流表位于 *ingress* 钩子中，它的位置要早于 *prerouting* 钩子。您可以从转发链中通过流卸载表达式选择要卸载的流（flow）。流表由其地址簇及名称作为区分标识。地址簇必须是**ip**,  **ip6**,  **inet** 的其中一个。**inet** 地址簇是一个虚拟的地址族，用于创建IPv4/IPv6混合表。当未指定地址簇时，默认为 **ip**。
+
+
+
+| 有关流表的操作命令 | 描述                                       |
+| :----------------: | ------------------------------------------ |
+|      **add**       | 为具指定的表名及地址簇族添加一个新的流表。 |
+|     **delete**     | 删除指定的流表。                           |
+|      **list**      | 列出所有流表。                             |
+
+
+
+
+
+
+
+
+
+## 有状态对象（STATEFUL OBJECTS）
+
+
+
+{ add | delete | list | reset } **type** [ *family* ] *table* *object*
+
+delete **type** [ *family* ] *table* handle *handle*
+
+
+
+有状态对象（Stateful objects）被附加到表上，并由唯一的名称标识。
+
+它们将规则中的有状态信息分组，若要在规则中引用它们，使用关键字格式 “type name”，例如 “counter name”。
+
+| 有状态对象相关操作命令 | 说明                                 |
+| ---------------------- | ------------------------------------ |
+| **add**                | 在指定的表中添加一个新的有状态对象。 |
+| **delete**             | 删除指定对象                         |
+| **list**               | 显示对象持有的状态信息。             |
+| **reset**              | 列出及重置有状态对象                 |
+
+
+
+## 连接跟踪（ct）
+
+**ct**
+helper *helper* { type *type* protocol *protocol* ; [ l3proto *family*; ] }
+
+**ct helper** 用于定义连接跟踪辅助工具（helper），然后可以与 **ct helper set** 语句结合使用。类型和协议是强制性的，默认情况下，*protocol 派生自表的簇。例如，在 **inet** 簇的表中，内核将尝试加载 **IPv4** 和 **IPv6** helper后端，如果它们被内核支持。
+
+**conntrack helper 规范**
+
+| 关键字（Keyword） | 描述               | 类型（Type）                 |
+| ----------------- | ------------------ | ---------------------------- |
+| type              | helper 类型的名称  | 被引用的字符串(例如： "ftp") |
+| protocol          | helper的4层协议    | 字符串 (例如： tcp)          |
+| l3proto           | helper的第三层协议 | 地址簇(例如 **ip** )         |
+
+定义和分配 ftp helper
+
+与iptables不同的是，helper分配需要在连接跟踪查找完成之后执行，例如，用于hook优先级值为0的链。
+
+```json
+table inet myhelpers {
+  ct helper ftp-standard {
+     type "ftp" protocol tcp
+  }
+  chain prerouting {
+      type filter hook prerouting priority 0;
+      tcp dport 21 ct helper set "ftp-standard"
+  }
+}
+```
+
+
+
+## 计数器（COUNTER）
+
+**counter**
+[ packets bytes ]
+
+**Counter 规范**
+
+| Keyword | Description    | Type                |
+| ------- | -------------- | ------------------- |
+| packets | 数据包初始计数 | 无符号整数 (64 bit) |
+| bytes   | 初始字节数计数 | 无符号整数 (64 bit) |
+
+
+
+##  配额（QUOTA）
+
+**quota**
+[over | until] [used]
+
+
+
+**Quota 规范**
+
+| 关键字 | 描述                     | 类型                                                         |
+| ------ | ------------------------ | ------------------------------------------------------------ |
+| quota  | 配额限制，用作配额限制的 | 两个参数，无符号整数(64位)和字符串：**bytes** ,  **kbytes** , **mbytes**。"over" 及 "until" 需放在这两个参数组合之前。 |
+| used   | 已用配额的初值           | 两个参数，无符号整数(64位)和字符串： **bytes** ,  **kbytes** , **mbytes** |
+
+
+
+## 表达式（EXPRESSIONS）
+
+表达式可以用值，如网络地址、端口号等常量表示。或在规则集审计期间从数据包收集的数据。
+
+表达式可以使用二进制、逻辑、关系和其他类型的表达式组合，形成复杂或关系(match)表达式。
+
+它们也被用作某些类型的操作的参数，如NAT、数据包标记等。
+
+每个表达式都有一个数据类型，它决定符号值的数值长度、解析和表示以及表达式的类型兼容性。
+
+
+
+## DESCRIBE 命令
+
+**describe**
+*expression*
+
+**describe** 命令显示有关表达式的结果类型及其数据类型的信息。
+
+**describe 命令**
+
+```bash
+$ nft describe tcp flags
+payload expression, datatype tcp_flag (TCP flag) (basetype bitmask, integer), 8 bits
+predefined symbolic constants:
+fin                           	0x01
+syn                           	0x02
+rst                           	0x04
+psh                           	0x08
+ack                           	0x10
+urg                           	0x20
+ecn                           	0x40
+cwr                           	0x80
+```
+
+
+
+## 数据类型（DATA TYPES）
+
+数据类型（data type）决定符号值的数值长度、解析和表示以及表达式的类型兼容性。存在许多全局数据类型，此外，一些表达式类型进一步定义了特定于表达式类型的数据类型。大多数数据类型有一个固定的长度，但是有些可能有一个动态的长度，例如字符串类型。
+
+- 类型可以从低阶类型派生，举例： IPv4地址类型派生自整数类型，这意味着IPv4地址也可以指定为一个整数值。
+- 在某些上下文（context）中(set和map定义)，需要显式地指定数据类型。每种类型都有一个用于此的名称。
+
+### 整型（INTEGER TYPE）
+
+| 名称    | 关键字  | 由以下类型派生 |
+| ------- | ------- | -------- |
+| Integer | integer	variable | - |
+
+整数类型用于数值。它可以被指定为十进制、十六进制或八进制。整数类型没有固定的大小，它的大小由所使用的表达式决定。
+
+### 位掩码类型（BITMASK TYPE）
+
+| 名称    | 关键字                     | 由以下类型派生 |
+| ------- | -------------------------- | --------- |
+| Bitmask | bitmask	variable | integer |
+
+位掩码类型(bitmask)用于位掩码。
+
+### 字符串类型（STRING TYPE）
+
+| 名称   | 关键字 | 由以下类型派生 |
+| ------ | ------ | -------------- |
+| String | string | -              |
+
+字符串类型用于字符串。字符串以字母字符(A- za -z)开始，后跟零个或多个字母数字字符或 /、-、_和 .. 此外，任何包含在双引号(")中的内容都被识别为字符串。
+
+```
+# Interface name
+filter input iifname eth0
+# Weird interface name
+filter input iifname "(eth0)"
+```
+
+### 链路层地址类型（LINK LAYER ADDRESS TYPE）
+
+| 名称               | 关键字 | 数据长度 | 由以下类型派生 |
+| ------------------ | ------ | -------- | -------------- |
+| Link layer address | lladdr | variable | integer        |
+
+链路层地址类型用于链路层地址。链路层地址被指定为由两个用冒号分隔的十六进制数字组成的可变数量的组。
+
+**Link layer address 规范**
+
+```
+# Ethernet destination MAC address
+filter input ether daddr 20:c9:d0:43:12:d9
+```
 
