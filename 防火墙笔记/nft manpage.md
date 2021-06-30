@@ -479,7 +479,7 @@ helper *helper* { type *type* protocol *protocol* ; [ l3proto *family*; ] }
 
 与iptables不同的是，helper分配需要在连接跟踪查找完成之后执行，例如，用于hook优先级值为0的链。
 
-```json
+```
 table inet myhelpers {
   ct helper ftp-standard {
      type "ftp" protocol tcp
@@ -562,34 +562,34 @@ cwr                           	0x80
 
 ## 数据类型（DATA TYPES）
 
-数据类型（data type）决定符号值的数值长度、解析和表示以及表达式的类型兼容性。存在许多全局数据类型，此外，一些表达式类型进一步定义了特定于表达式类型的数据类型。大多数数据类型有一个固定的长度，但是有些可能有一个动态的长度，例如字符串类型。
+数据类型（ **data type** ）决定符号值的数值长度、解析和表示以及表达式的类型兼容性。存在许多全局数据类型，此外，一些表达式类型进一步定义了特定于表达式类型的数据类型。大多数数据类型有一个固定的长度，但是有些可能有一个动态的长度，例如字符串类型。
 
 - 类型可以从低阶类型派生，举例： IPv4地址类型派生自整数类型，这意味着IPv4地址也可以指定为一个整数值。
 - 在某些上下文（context）中(set和map定义)，需要显式地指定数据类型。每种类型都有一个用于此的名称。
 
-### 整型（INTEGER TYPE）
+### INTEGER TYPE（整型）
 
 | 名称    | 关键字  | 由以下类型派生 |
 | ------- | ------- | -------- |
-| Integer | integer	variable | - |
+| Integer | 整数变量 | - |
 
-整数类型用于数值。它可以被指定为十进制、十六进制或八进制。整数类型没有固定的大小，它的大小由所使用的表达式决定。
+ **NTEGER TYPE** 用于数值。它可以被指定为十进制、十六进制或八进制。整数类型没有固定的大小，它的大小由所使用的表达式决定。
 
-### 位掩码类型（BITMASK TYPE）
+### BITMASK TYPE（位掩码类型）
 
 | 名称    | 关键字                     | 由以下类型派生 |
 | ------- | -------------------------- | --------- |
-| Bitmask | bitmask	variable | integer |
+| Bitmask | bitmask 变量 | integer |
 
 位掩码类型(bitmask)用于位掩码。
 
-### 字符串类型（STRING TYPE）
+### STRING TYPE（字符串类型）
 
 | 名称   | 关键字 | 由以下类型派生 |
 | ------ | ------ | -------------- |
 | String | string | -              |
 
-字符串类型用于字符串。字符串以字母字符(A- za -z)开始，后跟零个或多个字母数字字符或 /、-、_和 .. 此外，任何包含在双引号(")中的内容都被识别为字符串。
+**STRING TYPE** 用于字符串。字符串以字母字符(A- za -z)开始，后跟零个或多个字母数字字符或 /、-、_和 .. 此外，任何包含在双引号(")中的内容都被识别为字符串。
 
 ```
 # Interface name
@@ -598,13 +598,15 @@ filter input iifname eth0
 filter input iifname "(eth0)"
 ```
 
-### 链路层地址类型（LINK LAYER ADDRESS TYPE）
+
+
+### LINK LAYER ADDRESS TYPE（链路层地址类型）
 
 | 名称               | 关键字 | 数据长度 | 由以下类型派生 |
 | ------------------ | ------ | -------- | -------------- |
 | Link layer address | lladdr | variable | integer        |
 
-链路层地址类型用于链路层地址。链路层地址被指定为由两个用冒号分隔的十六进制数字组成的可变数量的组。
+**LINK LAYER ADDRESS TYPE **用于链路层地址。链路层地址被指定为由两个用冒号分隔的十六进制数字组成的可变数量的组。
 
 **Link layer address 规范**
 
@@ -612,4 +614,458 @@ filter input iifname "(eth0)"
 # Ethernet destination MAC address
 filter input ether daddr 20:c9:d0:43:12:d9
 ```
+
+
+
+### IPV4 ADDRESS TYPE（IPv4 地址类型）
+
+| 名称      | 关键字 | 数据长度 | 由以下类型派生 |
+| --------- | ------ | -------- | -------------- |
+| IPv4 地址 | lladdr | 32 位    | integer        |
+
+**IPV4 ADDRESS TYPE** 用于IPv4地址。地址可以指定为点分（隔）十进制（192.168.1.1）、点分十六进制（c0.a8.1.1）、点分八进制、十进制(12625937)、十六进制(0xc0a811)、八进制，也可以指定为主机名。主机名将使用标准系统解析器进行解析。
+
+**IPv4 地址规范**
+
+```
+# 使用点分隔的十进制数字
+filter output ip daddr 127.0.0.1
+# 使用主机名
+filter output ip daddr localhost
+```
+
+
+
+### IPV6 ADDRESS TYPE（IPV6 地址类型）
+
+| 名称      | 关键字    | 数据长度 | 由以下类型派生 |
+| --------- | --------- | -------- | -------------- |
+| IPv6 地址 | ipv6_addr | 128  位  | integer        |
+
+**IPV6 ADDRESS TYPE** 用于IPv6地址。地址以主机名或以冒号分隔的十六进制半字指定。地址可以用方括号(“[]”)括起来，以区别于端口号。
+
+**IPv6地址规范（含方括号使用规范）**
+
+```
+# 简短的回环地址(loopback)
+filter output ip6 daddr ::1
+
+# 如果没有[ ]，端口号(22)将被解析为ipv6地址的一部分
+ip6 nat prerouting tcp dport 2222 dnat to [1ce::d0]:22
+```
+
+
+
+### BOOLEAN TYPE（布尔类型）
+
+| 名称     | 关键字  | 数据长度 | 由以下类型派生 |
+| -------- | ------- | -------- | -------------- |
+| 布尔类型 | boolean | 1 位     | integer        |
+
+布尔类型是用户空间中的语法辅助类型（syntactical helper type ）。它的用途是在关系表达式的右边(通常是隐式的)将左边的表达式更改为布尔检查(通常是为了存在，**existence** )。
+
+以下关键字将自动解析为给定值的布尔类型：
+
+| 关键字  | 值   |
+| ------- | ---- |
+| exists  | 1    |
+| missing | 0    |
+
+**Boolean 规范**
+
+下面的表达式支持布尔比较：
+
+| 表达式     | 行为                    |
+| ---------- | ----------------------- |
+| fib        | 检查路由的存在。        |
+| exthdr     | 检查IPv6扩展头的存在。  |
+| tcp option | 检查TCP选项报头的存在。 |
+
+
+
+```
+# 如果路由存在，则匹配（match）
+filter input fib daddr . iif oif exists
+# 只匹配IPv6流量中的非分片报文
+filter input exthdr frag missing
+# 如果TCP时间戳选项是存在的,则匹配
+filter input tcp option timestamp exists
+```
+
+
+
+### ICMP TYPE TYPE（ICMP TYPE 类型）
+
+| 名称      | 关键字    | 数据长度 | 由以下类型派生 |
+| --------- | --------- | -------- | -------------- |
+| ICMP Type | icmp_type | 8 位     | integer        |
+
+**ICMP TYPE**类型用于方便地指定ICMP报头的类型字段。
+
+在指定ICMP类型时，可以使用以下关键字:
+
+| 关键字                  | 数值 |
+| ----------------------- | ---- |
+| echo-reply              | 0    |
+| destination-unreachable | 3    |
+| source-quench           | 4    |
+| redirect                | 5    |
+| echo-request            | 8    |
+| router-advertisement    | 9    |
+| router-solicitation     | 10   |
+| time-exceeded           | 11   |
+| parameter-problem       | 12   |
+| timestamp-request       | 13   |
+| timestamp-reply         | 14   |
+| info-request            | 15   |
+| info-reply              | 16   |
+| address-mask-request    | 17   |
+| address-mask-reply      | 18   |
+
+**ICMP Type 规范**
+
+```
+# 匹配 ping 包，包括两种类型的echo-request及echo-reply
+filter output icmp type { echo-request, echo-reply }
+```
+
+
+
+### ICMP CODE TYPE（ICMP CODE类型）
+
+| 名称      | 关键字    | 数据长度 | 由以下类型派生 |
+| --------- | --------- | -------- | -------------- |
+| ICMP Code | icmp_code | 8 位     | integer        |
+
+ICMP Code 类型用于方便地指定ICMP头的Code字段。
+
+在指定 *ICMP code* 时，可以使用以下关键字:
+
+| 关键字           | 数值 |
+| ---------------- | ---- |
+| net-unreachable  | 0    |
+| host-unreachable | 1    |
+| prot-unreachable | 2    |
+| port-unreachable | 3    |
+| net-prohibited   | 9    |
+| host-prohibited  | 10   |
+| admin-prohibited | 13   |
+
+
+
+### ICMPV6 TYPE TYPE
+
+| 名称        | 关键字      | 数据长度 | 由以下类型派生 |
+| ----------- | ----------- | -------- | -------------- |
+| ICMPv6 Type | icmpv6_type | 8 位     | integer        |
+
+ICMPV6 TYPE 类型用于方便地指定ICMPv6报头的 **type** 字段。
+
+当指定 **ICMPv6 type** 时，可以使用以下关键字:
+
+| 关键字                  | 数值 |
+| ----------------------- | ---- |
+| destination-unreachable | 1    |
+| packet-too-big          | 2    |
+| time-exceeded           | 3    |
+| parameter-problem       | 4    |
+| echo-request            | 128  |
+| echo-reply              | 129  |
+| mld-listener-query      | 130  |
+| mld-listener-report     | 131  |
+| mld-listener-done       | 132  |
+| mld-listener-reduction  | 132  |
+| nd-router-solicit       | 133  |
+| nd-router-advert        | 134  |
+| nd-neighbor-solicit     | 135  |
+| nd-neighbor-advert      | 136  |
+| nd-redirect             | 137  |
+| router-renumbering      | 138  |
+| ind-neighbor-solicit    | 141  |
+| ind-neighbor-advert     | 142  |
+| mld2-listener-report    | 143  |
+
+**ICMPv6 Type 规范**
+
+```
+# 匹配 ICMPv6 协议的ping包
+filter output icmpv6 type { echo-request, echo-reply }
+```
+
+
+
+### ICMPV6 CODE TYPE（ICMPV6 CODE 类型）
+
+| 名称        | 关键字      | 数据长度 | 由以下类型派生 |
+| ----------- | ----------- | -------- | -------------- |
+| ICMPv6 Code | icmpv6_code | 8 位     | integer        |
+
+ ICMPv6 Code 类型用于方便地指定ICMPv6报头的 **code** 字段。
+
+指定 **ICMPv6 code** 时可以使用以下关键字：
+
+| 关键字           | 数值 |
+| ---------------- | ---- |
+| no-route         | 0    |
+| admin-prohibited | 1    |
+| addr-unreachable | 3    |
+| port-unreachable | 4    |
+| policy-fail      | 5    |
+| reject-route     | 6    |
+
+
+
+### ICMPVX CODE TYPE（ICMPVX CODE 类型）
+
+| 名称        | 关键字     | 数据长度 | 由以下类型派生 |
+| ----------- | ---------- | -------- | -------------- |
+| ICMPvX Code | icmpx_code | 8 位     | integer        |
+
+ICMPvX Code 类型抽象是一组值，它重叠在inet家族中使用的ICMP和ICMPv6 Code类型之间。
+
+ICMPvX Code 类型是抽象的一组值，在 **inet ** 簇中使用的ICMP和ICMPv6 Code类型之间的重叠部分。
+
+当指定 **ICMPvX code** 时，可以使用以下关键字：
+
+| 关键字           | 数值 |
+| ---------------- | ---- |
+| no-route         | 0    |
+| port-unreachable | 1    |
+| host-unreachable | 2    |
+| admin-prohibited | 3    |
+
+
+
+### CONNTRACK TYPES（CONNTRACK 类型）
+
+这是 **ct** 表达式和语句中使用的类型的概述:
+
+| 名称                 | 关键字    | 数据长度 | 由以下类型派生 |
+| -------------------- | --------- | -------- | -------------- |
+| conntrack state      | ct_state  | 4 byte   | bitmask        |
+| conntrack direction  | ct_dir    | 8 bit    | integer        |
+| conntrack status     | ct_status | 4 byte   | bitmask        |
+| conntrack event bits | ct_event  | 4 byte   | bitmask        |
+| conntrack label      | ct_label  | 128 bit  | bitmask        |
+
+为了方便，以上每种类型都提供了关键词:
+
+**conntrack state (ct_state)**
+
+| Keyword     | Value |
+| ----------- | ----- |
+| invalid     | 1     |
+| established | 2     |
+| related     | 4     |
+| new         | 8     |
+| untracked   | 64    |
+
+**conntrack direction (ct_dir)**
+
+| Keyword  | Value |
+| -------- | ----- |
+| original | 0     |
+| reply    | 1     |
+
+**conntrack status (ct_status)**
+
+| Keyword    | Value |
+| ---------- | ----- |
+| expected   | 1     |
+| seen-reply | 2     |
+| assured    | 4     |
+| confirmed  | 8     |
+| snat       | 16    |
+| dnat       | 32    |
+| dying      | 512   |
+
+**conntrack event bits (ct_event)**
+
+| Keyword   | Value |
+| --------- | ----- |
+| new       | 1     |
+| related   | 2     |
+| destroy   | 4     |
+| reply     | 8     |
+| assured   | 16    |
+| protoinfo | 32    |
+| helper    | 64    |
+| mark      | 128   |
+| seqadj    | 256   |
+| secmark   | 512   |
+| label     | 1024  |
+
+**conntrack label** 类型( *ct_label* )可能的关键字在运行时从 /etc/connlabel.conf 中读取。
+
+
+
+## 主表达式（PRIMARY EXPRESSIONS）
+
+最低顺序的表达式是一个主表达式，表示一个常量或来自包的有效负载（payload）、元数据（meta data）或有状态模块(stateful module)的单个数据。
+
+
+
+### META 表达式 （元数据查询）
+
+**meta** {length | nfproto | l4proto | protocol | priority}
+
+[meta] {mark | iif | iifname | iiftype | oif | oifname | oiftype | skuid | skgid | nftrace | rtclassid | ibrname | obrname | pkttype | cpu | iifgroup | oifgroup | cgroup | random | secpath}
+
+**meta** 表达式指的是与数据包相关联的元数据（meta data）。
+
+元表达式有两种类型：非限定元表达式和限定元表达式。限定的元表达式要求在元键之前使用 **meta** 关键字。限定元表达式可以通过直接使用元键或作为限定元表达式来指定。14proto元键对于匹配IPv4或IPv6数据包的特定传输协议非常有用。它还将跳过IPv6数据包中存在的任何IPv6扩展头。
+
+元表达式类型：
+
+| Keyword   | Description                                          | Type              |
+| --------- | ---------------------------------------------------- | ----------------- |
+| length    | 数据包的长度，以字节为单位                           | integer (32 bit)  |
+| nfproto   | real hook protocol family, useful only in inet table | integer (32 bit)  |
+| l4proto   | 第4层协议相关，跳过ipv6扩展头                        | integer (8 bit)   |
+| protocol  | EtherType 协议数值                                   | ether_type        |
+| priority  | TC数据包优先级                                       | tc_handle         |
+| mark      | 数据包标记（mark）                                   | mark              |
+| iif       | 往内核流入数据包的网络接口索引（输入接口索引）       | iface_index       |
+| iifname   | 往内核流入数据包的网络接口名称（输入接口名称）       | ifname            |
+| iiftype   | 往内核流入数据包的网络接口的类型（输入接口类型）     | iface_type        |
+| oif       | 从内核流出数据包的网路接口索引（输出接口索引）       | iface_index       |
+| oifname   | 从内核流出数据包的网络接口名称（输出接口名称）       | ifname            |
+| oiftype   | 从内核流出数据包的网络接口的类型（输出接口硬件类型） | iface_type        |
+| skuid     | 与原始套接字关联的UID                                | uid               |
+| skgid     | 与原始套接字相关的GID                                | gid               |
+| rtclassid | 域路由表                                             | realm             |
+| ibrname   | 输入桥接接口名称                                     | ifname            |
+| obrname   | 输出桥接接口名称                                     | ifname            |
+| pkttype   | 数据包类型                                           | pkt_type          |
+| cpu       | 处理数据包的CPU编号                                  | integer (32 bits) |
+| iifgroup  | incoming 设备组                                      | devgroup          |
+| oifgroup  | outgoing  设备组                                     | devgroup          |
+| cgroup    | control group id（cgroup子系统相关）                 | integer (32 bits) |
+| random    | 伪随机数                                             | integer (32 bits) |
+| secpath   | 布尔值                                               | boolean (1 bit)   |
+
+**Meta 表达式特定类型**
+
+| 类型          | 描述                                                         |
+| ------------- | ------------------------------------------------------------ |
+| iface_index   | 网络接口索引 (32 位长度数字)。可以用数字或现有接口的名称指定（如eth0）。 |
+| ifname        | 网络接口名称 (16 字节长度字符串)。该名称的接口不一定要存在。 |
+| iface_type    | 接口类型 (16 位长度数字)。                                   |
+| uid           | 用户标识 (32 位长度数字)。可以使用数字或用户名指定。         |
+| gid           | 用于组标识 (32 位长度数字)。可以使用数字或用户组名指定。     |
+| realm         | 域路由表 (32位长度数字). 可以使用数字或在 /etc/iproute2/rt_realms 中定义的符号名指定。 |
+| devgroup_type | 设备组 (32 位长度数字). 可以使用数字或在 /etc/iproute2/group 中定义的符号名指定。 |
+| pkt_type      | 数据包类型: Unicast (单播), Broadcast (广播), Multicast (组播). |
+
+**使用元表达式**
+
+```
+# 限定元表达式
+filter output meta oif eth0
+
+# 非限定元表达式
+filter output oif eth0
+
+# 包装受ipsec处理的影响
+raw prerouting meta secpath exists accept
+```
+
+
+
+### FIB 表达式（转发信息库查询）
+
+**fib** {saddr | daddr | {mark | iif | oif}} {oif | oifname | type}
+
+fib表达式通过查询fib( forwarding information base，转发信息库)来获取特定地址将使用的输出接口索引等信息。输入是一个元素元组，用作fib查找函数的输入。
+
+**fib 表达式特定的类型**
+
+| 关键字  | 描述         | 类型            |
+| ------- | ------------ | --------------- |
+| oif     | 输出接口索引 | integer (32 位) |
+| oifname | 输出接口名称 | string          |
+| type    | 地址类型     | fib_addrtype    |
+
+**fib 表达式的使用**
+
+```
+# 在没有反向路径的情况下丢弃数据包
+filter prerouting fib saddr . iif oif missing drop
+
+# 丢弃未配置入接口地址的报文
+filter prerouting fib daddr . iif type != { local, broadcast, multicast } drop
+
+# 在特定的“blackhole”表中执行查找(0xdead，需要适当的IP规则)
+filter prerouting meta mark set 0xdead fib daddr . mark type vmap { blackhole : drop, prohibit : jump prohibited, unreachable : drop }
+```
+
+
+
+### ROUTING 表达式 （路由查询）
+
+**rt** {classid | nexthop}
+
+路由表达式指的是与数据包相关联的路由数据。
+
+**路由表达式类型**
+
+| Keyword | Description            | Type                |
+| ------- | ---------------------- | ------------------- |
+| classid | 域路由表               | realm               |
+| nexthop | 路由下一跳地址         | ipv4_addr/ipv6_addr |
+| mtu     | 路由的 TCP最大报文长度 | integer (16 bit)    |
+
+**路由表达式特定类型**
+
+| 类型  | 描述                                                         |
+| ----- | ------------------------------------------------------------ |
+| realm | 域路由表 (32 bit number). 可以用数字或 /etc/iproute2/rt_realms 中定义的符号名称来指定。 |
+
+**路由表达式的使用**
+
+```
+# ip地址簇独立的rt表达式
+filter output rt classid 10
+
+# 依赖ip簇的rt表达式
+ip filter output rt nexthop 192.168.0.1
+ip6 filter output rt nexthop fd00::1
+inet filter output rt ip nexthop 192.168.0.1
+inet filter output rt ip6 nexthop fd00::1
+```
+
+
+
+### PAYLOAD 表达式 (有效载荷)
+
+有效载荷表达式指的是数据包有效载荷中的数据。
+
+
+
+#### ETHERNET HEADER 表达式 （以太网头部）
+
+**ether** [*Ethernet header field*]
+
+**Ethernet header** ：
+
+| Keyword | Description             | Type       |
+| ------- | ----------------------- | ---------- |
+| daddr   | Destination MAC address | ether_addr |
+| saddr   | Source MAC address      | ether_addr |
+| type    | EtherType               | ether_type |
+
+
+
+#### VLAN HEADER 表达式（虚拟局域网头部）
+
+**vlan** [*VLAN header field*]
+
+**VLAN header** ：
+
+| Keyword | Description                | Type             |
+| ------- | -------------------------- | ---------------- |
+| id      | VLAN ID (VID)              | integer (12 bit) |
+| cfi     | Canonical Format Indicator | integer (1 bit)  |
+| pcp     | Priority code point        | integer (3 bit)  |
+| type    | EtherType                  | ether_type       |
 
