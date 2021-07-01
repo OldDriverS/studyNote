@@ -16,7 +16,7 @@ sudo -> 临时授权
 bash-completion -> bash Tab补全
 ```
 
-前期先制作启动盘，对于支持UEFI启动的PC，直接把iso内容解压到一个fat32格式的U盘根目录即可（保证U盘根目录下有个EFI文件夹），或者使用制作工具把iso制作成u盘启动盘，对于已有的debian系统给别的硬盘安装debian，则单独安装**bootstrap**即可。以下以iso基础镜像安装为例的笔记。
+前期先制作启动盘，对于支持UEFI启动的PC，直接把iso内容解压到一个fat32格式的U盘根目录即可（保证U盘根目录下有个EFI文件夹），或者使用制作工具把iso制作成u盘启动盘，对于已有的debian系统给别的硬盘安装debian，则单独安装 **bootstrap** 即可。以下以iso基础镜像安装为例的笔记。
 
 
 # 前期准备
@@ -39,11 +39,11 @@ sudo su
 
 ## 2、确认网络状态
 
-debian的live镜像使用**ifupdown**包的**networking.service**管理网络，在DHCP下的路由下自动分配IP比较容易管理。
+debian的live镜像使用 **ifupdown**包的**networking.service** 管理网络，在DHCP下的路由下自动分配IP比较容易管理。
 
 启动系统后直接就可以通过DHCP获取到IP，如果特殊情况下没有网，或者需要手动管理。
 
-如果需要手动管理网络，以下为使用**systemd-networkd.service** 代替**networking.service**管理网络的配置。
+如果需要手动管理网络，以下为使用 **systemd-networkd.service** 代替**networking.service** 管理网络的配置。
 
 先查看网卡和MAC地址：
 
@@ -67,9 +67,9 @@ root@debian:~# ip addr
        valid_lft forever preferred_lft forever
 ```
 
-此处找到有2个网卡（序号2和3）eht0、eth1，mac地址为**00:15:5d:1f:1b:27**、**00:15:5d:1f:1b:29**
+此处找到有2个网卡（序号2和3）eht0、eth1，mac地址为 **00:15:5d:1f:1b:27**、**00:15:5d:1f:1b:29** 
 
-新建一个systemd网络管理的模板**/etc/systemd/network/01-lan.network**，通过MAC地址匹配，这是DHCP分配IP的模板，一个网卡一个配置文件。
+新建一个systemd网络管理的模板 **/etc/systemd/network/01-lan.network** ，通过MAC地址匹配，这是DHCP分配IP的模板，一个网卡一个配置文件。
 
 ```ini
 [Match]
@@ -79,7 +79,7 @@ MACAddress=00:15:5d:1f:1b:27
 DHCP=yes
 ```
 
-如果是静态IP则需要指定IP（**192.168.1.2**）、网关(**192.168.1.1**)、DNS（**223.5.5.5**），
+如果是静态IP则需要指定IP（ **192.168.1.2**）、网关(**192.168.1.1**)、DNS（**223.5.5.5** ），
 
 ```ini
 [Match]
@@ -113,7 +113,7 @@ root@debian:~# systemctl status systemd-networkd
            └─2928 /lib/systemd/systemd-networkd
 ```
 
-**systemd-networkd**状态正常，通过**networkctl**查看网络状态
+ **systemd-networkd**状态正常，通过**networkctl** 查看网络状态
 
 ```bash
 root@debian:~# networkctl
@@ -123,11 +123,11 @@ IDX LINK             TYPE               OPERATIONAL SETUP
   3 eth1             ether              routable    configured
 ```
 
-绿色的**routable**、说明链路正常，此处用eth1上网。多个网卡上网优先级，使用`Metric=` 设定跃点值，跃点值越低，优先级越高。
+绿色的 **routable** 、说明链路正常，此处用eth1上网。多个网卡上网优先级，使用`Metric=` 设定跃点值，跃点值越低，优先级越高。
 
 ## 3、更换软件换源
 
-使用**nano**编辑**/etc/apt/sources.list**
+使用 **nano**编辑**/etc/apt/sources.list** 
 
 ```bash
 root@debian:~# nano  /etc/apt/sources.list
@@ -139,7 +139,7 @@ root@debian:~# nano  /etc/apt/sources.list
 deb http://mirrors.tuna.tsinghua.edu.cn/debian/ buster main contrib non-free
 ```
 
-**ctrl+o** 保存文件，**ctrl+x** 退出nano，更新索引
+ **ctrl+o** 保存文件，**ctrl+x**  退出nano，更新索引
 
 ```bash
 root@debian:~# apt update
@@ -161,7 +161,7 @@ root@debian:~# apt install debootstrap dosfstools
 
 ## 5、使用fdisk对硬盘进行分区与格式化
 
-**格式化硬盘前应该备份数据****
+ **格式化硬盘前应该备份数据**** 
 
 确定硬盘
 
@@ -320,13 +320,13 @@ debootstrap --arch=amd64 --include=linux-image-amd64,systemd,grub-efi-amd64,make
 debootstrap --arch=amd64 --include=linux-image-amd64,systemd,grub-efi-amd64,makedev,locales,vim,openssh-server,sudo,bash-completion buster /mnt/root http://mirrors.163.com/debian/
 ```
 
-**debootstrap**执行成功后提示，这个下载过程可能很漫长。
+ **debootstrap** 执行成功后提示，这个下载过程可能很漫长。
 
 ````
 I: Base system installed successfully.
 ````
 
-创建**EFI**挂载点，并挂载
+创建 **EFI** 挂载点，并挂载
 
 ```bash
 root@debian:/mnt/root# mkdir /mnt/root/boot/EFI
@@ -355,7 +355,7 @@ root@debian:/mnt/root# vim /mnt/root/etc/fstab
 
 
 
-**/etc/fstab**内容如下：**#**开头的为注释，为后续添加挂载点方便，还是添加一个格式注释。
+ **/etc/fstab**内容如下：**#** 开头的为注释，为后续添加挂载点方便，还是添加一个格式注释。
 
 ```fstab
 # UNCONFIGURED FSTAB FOR BASE SYSTEM
@@ -381,7 +381,7 @@ root@debian:/mnt/root# mount -t sysfs sysfs /mnt/root/sys
 root@debian:~#  dpkg-reconfigure locales
 ```
 
-选择语言为**en_US.UTF-8**，切换根目录，更新软件索引
+选择语言为 **en_US.UTF-8** ，切换根目录，更新软件索引
 
 ```bash
 root@debian:/mnt/root# chroot /mnt/root/
@@ -492,7 +492,7 @@ root@debian:/# systemctl poweroff
 
 启动后登陆系统root用户。
 
-由于新系统中没有使用**ifupdown** 的**networking.service** 管理网络，使用**systemd-networkd**,参考临时系统配置网络的方法，**/etc/systemd/network/01-lan.network**内容：
+由于新系统中没有使用 **ifupdown** 的**networking.service** 管理网络，使用**systemd-networkd**,参考临时系统配置网络的方法，**/etc/systemd/network/01-lan.network** 内容：
 
 ```ini
 [Match]
