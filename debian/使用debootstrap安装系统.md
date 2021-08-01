@@ -488,7 +488,11 @@ root@debian:/# systemctl poweroff
 
 
 
-## 13、启动新系统及配置
+# 启动新系统及配置
+
+
+
+## 1、配置网络
 
 启动后登陆系统root用户。
 
@@ -536,7 +540,7 @@ PING www.a.shifen.com (14.215.177.39) 56(84) bytes of data.
 
 到此，不带桌面环境的debian安装完毕，一般通过ssh登录操作。
 
-# 14、安装桌面环境
+## 装桌面环境
 
 安装桌面环境和显示管理器完成整个桌面安装，包比较多。这里安装cinnamon桌面与lightdm显示管理服务。
 
@@ -555,6 +559,87 @@ root@debian:~# systemctl start lightdm
 ---
 
 
+
+# 使用 **network-manager ** 作为网络管理
+
+目前在Debian下你可以选择的网络管理服务有：
+
+- systemd-networkd ： 属于systemd的一部分，但是这个貌似没有一个友好的GUI管理客户端，总靠配置文件来设置网络
+- ifupdown :  也就是教程中出现频率最高的networking服务，它包含了/etc/network/interfaces之类的配置
+- network-manager : 这种在桌面用户用的应该比较多。
+
+如果使用桌面，可以考虑network-manager作为网络管理软件，它包含1个服务端或多种类型的客户端（CUI、TUI、GUI）
+
+- NetorkManager.service 服务
+
+- 多种类型的客户端
+
+- 涵盖多种网络、以太网、pppoe拨号、wifi等等。
+
+- 有图形化的配置或者终端的图形客户端，配置起来非常灵活
+
+    
+
+> 网络管理软件应该只使用一个，避免多个产生混乱
+
+无论是systemd-networkd或者是network-manager他们的客户端与服务端通讯，都将通过dbus。像systemd这玩意是极度依赖dbus的。
+
+
+
+## 安装network-manager
+
+可以在两个时间节点上安装：
+
+在debootstrap释放准系统的时候。
+
+```bash
+debootstrap --arch=amd64 --include=linux-image-amd64,systemd,grub-efi-amd64,makedev,locales,vim,openssh-server,man,sudo,bash-completion buster /mnt/root https://mirrors.tuna.tsinghua.edu.cn/debian/
+```
+
+如果已经错过了，安装完了系统，可以通过apt安装network-manager，然后禁用另外两种网络管理服务
+
+```bash
+apt install network-manager
+apt purge ifupdown
+systemctl disable systemd-networkd networking
+systemctl stop systemd-networkd networking
+systemctl enable NetworkManager
+systemctl start NetworkManager
+```
+
+
+
+## NetworkManager 使用
+
+它有以下几个客户端
+
+```
+# GUI
+# nm-applet是配合gnome一起使用的，并不能直接执行启动图形。他们属于network-manager-gnome包
+nm-applet
+nm-conection-editor
+
+# CUI
+nmcli
+nm-online
+
+# TUI
+nmtui
+# nmtui包含了以下组件
+nmtui-connect
+nmtui-edit
+nmtui-hostname
+```
+
+根据情况可以选择不同的客户端来设置网络服务。
+
+*nmcli* *nmtui* 均可在命令行下使用。
+
+*nm-applet* 则在 桌面环境使用
+
+*nm-online* 用于检测网络在线，可以检测当前网络是否连通或者当前NetworkManager服务是否启动。
+
+注意，如果NetworkManager服务未启动，无法使用以上命令，或者图形的客户端提示网络离线。
 
 # 资料参考：
 
