@@ -37,7 +37,7 @@
   ## 查询触摸屏设备信息
 
   ```
-  700X@Debian:~$ xinput
+  2700X@Debian:~$ xinput
   ⎡ Virtual core pointer                          id=2    [master pointer  (3)]
   ⎜   ↳ Virtual core XTEST pointer                id=4    [slave  pointer  (2)]
   ⎜   ↳ G2Touch Multi-Touch by G2TSP              id=8    [slave  pointer  (2)]
@@ -58,16 +58,11 @@
 
   
 
-  如果让他开机自动设置，则编辑 **xinputrc** 的脚本，添加进去，重启xserver
+  # 开启启动
 
-  ```
-  # ~/.xinputrc
+  我尝试了很多方法，包括修改Xsetup、Xsession，最终配置都没有生效。。。我佛了，最终在桌面新增了一个快捷方式..需要用的时候，点一下就行了..
   
-  run_im fcitx5
-  xinput --map-to-output 'G2Touch Multi-Touch by G2TSP' DisplayPort-0
-  ```
-
-  如果有多个触摸屏，应该设置多条这样的关系。
+   
 
 ---
 
