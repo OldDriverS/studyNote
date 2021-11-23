@@ -22,11 +22,11 @@ echo 1 > /proc/sys/net/ipv4/ip_forward
 
 ## Ingress hook（入口钩子）
 
-**ingress **钩子是在Linux内核4.2中添加的。与其他钩子不同的是，**ingress**钩子是绑定特定的网络接口（network interface）上。
+**ingress** 钩子是在Linux内核4.2中添加的。与其他钩子不同的是，**ingress** 钩子是绑定特定的网络接口（network interface）上。
 
-可以使用nftables和**ingress**钩子来执行甚至在 *prerouting* 之前生效的过滤策略。请注意这个阶段非常早，数据报碎片还没有被重新组装。所以，例如，匹配IP源地址（ip saddr）和目的地址（ip daddr）对所有的ip数据包都有效，但是匹配四层协议头（L4 headers）如 `udp dport` 只对未分片的数据包（unfragmented packets）有效，或第一个片段（first fragment）。
+可以使用nftables和 **ingress** 钩子来执行甚至在 *prerouting* 之前生效的过滤策略。请注意这个阶段非常早，数据报碎片还没有被重新组装。所以，例如，匹配IP源地址（ip saddr）和目的地址（ip daddr）对所有的ip数据包都有效，但是匹配四层协议头（L4 headers）如 `udp dport` 只对未分片的数据包（unfragmented packets）有效，或第一个片段（first fragment）。
 
-**ingress **钩子提供了一种替代`tc`输入过滤的方法。但是您仍然需要`tc`来进行流量整形/队列管理（shaping/queue）。
+**ingress** 钩子提供了一种替代`tc`输入过滤的方法。但是您仍然需要`tc`来进行流量整形/队列管理（shaping/queue）。
 
 # 钩子相关的协议簇(family)和链类型(chain type)
 
