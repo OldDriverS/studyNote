@@ -18,6 +18,36 @@ bash-completion -> bash Tab补全
 
 前期先制作启动盘，对于支持UEFI启动的PC，直接把iso内容解压到一个fat32格式的U盘根目录即可（保证U盘根目录下有个EFI文件夹），或者使用制作工具把iso制作成u盘启动盘，对于已有的debian系统给别的硬盘安装debian，则单独安装 **bootstrap** 即可。以下以iso基础镜像安装为例的笔记。
 
+# 安装思路
+
+- 下载一个debian livecd的iso镜像，此livecd包含debian基础的debian环境
+
+- livecd刻录到U盘，启动U盘中的debian livecd系统
+
+- livecd系统配网
+
+- 更换livecd中apt源为国内源
+
+- 从源中获取安装debootstrap及装系统需要的相关软件
+
+- 在硬盘中，为新的debian系统分区，并创建文件系统
+
+- 挂载文件系统
+
+- deboostrap释放文件
+
+- 通过chroot临时切换到新系统的环境
+
+- 配置新系统
+
+- 安装新系统的grub引导
+
+- 保存，卸载分区
+
+- 重启进新系统
+
+- 安装完毕
+
 
 # 前期准备
 
@@ -295,14 +325,14 @@ root@debian:/mnt# mount -t ext4 -o defaults,rw /dev/sda2 /mnt/root/
 
 ## 7、使用debootstrap下载基本系统并释放文件
 
-使用debootstrap工具构建一个基础的debian系统。镜像选择清华源。官网参考用法
+使用debootstrap工具构建一个基础的debian系统。镜像选择清华源。官网有参考用法
 
 ```
 debootstrap 版本名 ./释放目录 镜像网址
 debootstrap wheezy ./wheezy-chroot http://http.debian.net/debian/
 ```
 
-以buster为例
+以debian 10 buster为例，如果是其他版本，则需要将 `buster` 替换成对应的版本代码，例如，debian 11 是bullseye
 
 ```bash
 debootstrap --arch=amd64 buster /mnt/root https://mirrors.tuna.tsinghua.edu.cn/debian/
@@ -420,7 +450,7 @@ nano vim /etc/default/grub
 修改grub参数，注意root分区的UUID和新分区的uuid相同
 
 ```
-GRUB_CMDLINE_LINUX_DEFAULT="vga root=UUID=\"1a909d07-88bb-4419-8e53-9640287111dd\" init=/usr/bin/systemd ro vga vt"
+GRUB_CMDLINE_LINUX_DEFAULT="root=UUID=\"1a909d07-88bb-4419-8e53-9640287111dd\" init=/usr/bin/systemd ro vga vt"
 ```
 
 更新grub配置，更新initramfs
@@ -542,23 +572,41 @@ PING www.a.shifen.com (14.215.177.39) 56(84) bytes of data.
 
 ## 装桌面环境
 
-安装桌面环境和显示管理器完成整个桌面安装，包比较多。这里安装cinnamon桌面与lightdm显示管理服务。
+安装桌面环境和显示管理器完成整个桌面安装，包比较多。这里安装kde桌面与sddm显示管理服务。
 
 ```bash
-root@debian:~# apt install cinnamon lightdm
+root@debian:~# apt install kde-standard sddm
 ```
 
 启动显示管理器后通过登录以启动桌面
 
 ```bash
-root@debian:~# systemctl start lightdm
+root@debian:~# systemctl start sddm
 ```
 
+也可以通过systemd对dm服务的软连接启动（例如安装sddm后，display-manager.service默认是指向sddm）
 
+```bash
+root@debian:~# systemctl start display-manager
+```
+
+kde还有别的组件（其他桌面环境在打包时，相关组件也可能分好几个包），通过以下 `apt search` 或者 `aptitude search` 命令搜索，根据需要安装
+
+```bash
+root@debian:~# apt install aptitude
+root@debian:~# aptitude search ^kde-
+i A kde-baseapps                                    - base applications from the official KDE release (metapack
+i A kde-cli-tools                                   - tools to use KDE services from the command line
+i A kde-cli-tools-data                              - tools to use kioslaves from the command line
+p   kde-config-cddb                                 - CDDB retrieval configuration
+p   kde-config-cron                                 - program scheduler frontend
+p   kde-config-fcitx                                - 小企鹅输入法的 KDE 配置模块
+i   kde-config-fcitx5                               - KDE configuration module for Fcitx5
+......后面省略
+
+```
 
 ---
-
-
 
 # 使用 **network-manager ** 作为网络管理
 
@@ -580,7 +628,7 @@ root@debian:~# systemctl start lightdm
 
     
 
-> 网络管理软件应该只使用一个，避免多个产生混乱
+> 不同的网络管理软件可以共存，但对于同一个网络接口，网络管理软件应该只使用一个，避免多次配置，相互竞争产生混乱，当systemd-networkd接口接管了某个接口，NetworkManager可以设置成unmanaged
 
 无论是systemd-networkd或者是network-manager他们的客户端与服务端通讯，都将通过dbus。像systemd这玩意是极度依赖dbus的。
 
