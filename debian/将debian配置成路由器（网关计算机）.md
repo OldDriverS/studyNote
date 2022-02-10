@@ -5,21 +5,27 @@
 还需要继续的配置学习：
 
 - tc流量控制
+
 - 多个wan口配置及均衡负载
+
 - PPPOE拨号（学习了部分）
 
-事实上我在github看到一个[关于pppoe集成到systemd的讨论](https://github.com/systemd/systemd/issues/481)，抄作业即可
+- IPTV及多播（涉及软件包：igmpproxy 或者 pimd ）
+
+我在github看到一个[关于pppoe集成到systemd的讨论](https://github.com/systemd/systemd/issues/481)，觉得可以抄一波作业。
 
 ---
 
 # 路由能力
-- NAT 动态地址转换
+
+- 动态NAT
 
 - LAN口可以DHCP动态分配IP地址，代理DNS服务。
 
-- 防火墙，实现常规的流量过滤功能。
+- 防火墙，实现常规的流量及安全过滤功能。
 
 - 可以设置端口映射
+
 
 # 硬件
 
@@ -29,25 +35,25 @@
 
 # 涉及软件包
 
-**系统**：debian10
+**系统** ：debian10
 
-**防火墙**：nftables（代替iptables）
+**防火墙** ：nftables（代替iptables）
 
-**DHCP/DNS服务**：dnsmasq
+**DHCP/DNS服务** ：dnsmasq
 
-**网卡接口管理服务**：systemd-udevd systemd-networkd
+**网卡接口管理服务** ：systemd-udevd systemd-networkd
 
-**流量控制和策略路由**：iproute2 
+**流量控制和策略路由** ：iproute2 
 
 ---
 
 # 配置思路
 
-- （1）使用systemd.link配置网卡命名规则，设置固定接口名方便修改 **nftables** 规则
+- （1）使用 systemd.link 配置网卡命名规则，设置固定接口名方便修改 **nftables** 规则
 
-- （2）使用 networkctl 配合 system-networkd 管理网卡
+- （2）使用 networkctl （system-networkd的命令行前端）管理网络服务
 
-- （3）使用 nftables 配置 nat 规则以及防火墙规则
+- （3）使用 nftables 配置 nat 规则以及其他防火墙规则
 
 - （4）使用 dnsmasq 绑定 lan 口网卡，启用DHCP服务/DNS服务
 
@@ -58,21 +64,21 @@
 sudo apt install nftables dnsmasq iproute2
 ```
 
-## 新建`systemd.link`规则修改网卡名
+## 新建 `systemd.link` 规则修改网卡名
 
 步骤流程：
 
-- （1） 卸载掉现在的网络管理（主要针对`networking`和`NetworkManager`）
+- （1） 卸载掉多余的网络管理软件（主要针对 `networking `和 `NetworkManager` ），
 
-- （2） 修改udev规则，达到修改网卡名的目的（防火墙规则需要判断网卡名）
+- （2） 通过添加systemd.link规则规则，达到修改网卡名的目的（防火墙规则需要判断网卡名）
 
-- （3） 编写防火墙规则，使得内网流量出去时会被做SNAT。
+- （3） 编写防火墙规则，使得内网流量出去时会被动态做NAT。
 
 - （4） 创建DHCP服务、DNS服务，为局域网下的主机分配动态分配IP。
 
-### 1.通过`ip addr` 查询 网卡MAC地址
+### 1.通过 `ip addr` 查询 网卡MAC地址
 
-例如
+打印网络接口相关信息，获取MAC地址
 
 ```bash
 #ip addr
@@ -94,10 +100,10 @@ sudo apt install nftables dnsmasq iproute2
 
 ### 2.通过mac地址匹配udev规则来修改网卡名
 
-这一小节需要参考的文档有[systemd.link 中文手册](http://www.jinbuguo.com/systemd/systemd.link.html#),利用mac地址匹配网卡设备，更改网卡名。
+这一小节需要参考的文档有 [systemd.link 中文手册](http://www.jinbuguo.com/systemd/systemd.link.html#) ,利用mac地址匹配网卡设备，更改网卡名。
 
 
-使用systemd.link为wan、lan网口创建网络接口名称命名规则的配置，创建配置文件：
+使用systemd.link为 wan、lan 网口创建网络接口名称命名规则的配置，创建配置文件：
 
 ```bash
 sudo touch /lib/systemd/network/01-wan.link
@@ -112,7 +118,6 @@ sudo touch /lib/systemd/network/01-lan.link
 MACAddress=23:33:33:33:33:04
 
 [Link]
-Description=wan interface
 Name=wan
 
 
@@ -121,20 +126,24 @@ Name=wan
 MACAddress=23:33:33:33:33:05
 
 [Link]
-Description=lan interface
 Name=lan  # 新的接口名称
 
 ```
 
 
-## 切换`systemd-networkd`接管网卡，卸载networking和NetWorkManager服务
+## 切换 `systemd-networkd` 接管网卡，卸载networking和NetWorkManager服务
 
-- 使用`ifupdown`包做网络管理，对应的服务为`networking.service`
+- 使用 `ifupdown` 包做网络管理，对应的服务为`networking.service`
 
-- 使用`network-manager`对应的则是`NetworkManager.service`
+- 使用 `network-manager` 对应的则是`NetworkManager.service`
 
 网络管理软件可能通过两个源头来触发网络配置：服务与udev规则；如果禁用服务失败，需要考虑是否因为udev的rule触发事件导致配置变化。
 
+应该避免多个网络管理服务对同一个网络接口重复配置，这样会出现配置上到冲突。
+
+桌面环境通过NetworkManager来配置网络的，如需systemd-networkd与NetworkManager共存，可以用nmcli配置NetworkManager放弃对网络接口的管理（unmanaged）。
+
+简单粗暴的做法是，仅保留一个网络管理服务。
 
 ### 1.卸载其他网络管理
 
@@ -142,23 +151,21 @@ Name=lan  # 新的接口名称
 sudo apt purge ifupdown network-manager
 ```
 
-网络管理服务一般情况只存在一个，此处使用`systemd-networkd`作为网络管理服务，它包括:
-
-- **systemd-resolved.service**（DNS服务）
+此处使用 `systemd-networkd` 作为网络管理服务，它包括:
 
 - **systemd-networkd.service**（网络管理服务）
 
 - **systemd-networkd-wait-online.service**（等待网络在线服务，用于阻塞）
 
-三个相关服务，对应的命令有`networkctl`、`resolvectl`。
+它还需要域名解释的相关服务：**systemd-resolved.service**
+
+三个相关服务，对应的命令有 `networkctl` 、`resolvectl`。
 
 
 
+### 2.编写 systemd.network 配置文件
 
-
-### 2.编写systemd.network配置文件
-
-创建 **10-wan.network** 、**10-lan.network** 两个配置,文件名没要求，后缀要求是  **.network**
+创建 **10-wan.network** 、**10-lan.network** 两个配置,文件名可自定义，后缀要求是 **.network**
 
 ```
 sudo touch /etc/systemd/network/10-wan.network
@@ -183,7 +190,6 @@ MACAddress=23:33:33:33:33:04
 RequiredForOnline=no
 
 [Network]
-Description=wan network
 DHCP=yes
 IPForward=yes
 NTP=ntp.aliyun.com
@@ -202,20 +208,20 @@ MACAddress=23:33:33:33:33:05
 RequiredForOnline=no
 
 [Network]
-Description=LAN network
 Address=192.168.31.1/24
 IPForward=yes
+
 ```
 
-### 4.启用systemd-networkd服务,允许开机自启
+### 4.启用 systemd-networkd 服务,允许开机自启
 
 ```bash
 sudo systemctl daemon-reload
-sudo systemctl enable systemd-networkd
-sudo systemctl start systemd-networkd
+sudo systemctl --now enable systemd-networkd
 ```
+然后重启使新的网络接口名生效。
 
-### 5.使用systemd-resolved.service管理主机DNS,配置关闭监听53端口及5355端口
+### 5.使用 systemd-resolved.service 管理主机DNS,配置关闭监听53端口及5355端口
 
 使用systemd-networkd管理网络，还需要启用systemd-resolved管理本机的DNS服务，确保域名解正常。
 
@@ -227,6 +233,7 @@ sudo systemctl start systemd-networkd
 [Resolve]
 DNS=223.5.5.5 223.6.6.6
 Cache=yes
+MulticastDNS=no
 DNSStubListener=no
 ReadEtcHosts=yes
 LLMNR=no
@@ -242,7 +249,9 @@ LLMNR=no
 
 - （4） ReadEtcHosts：设置为yes,发送查询请求前，会优先查询/etc/hosts
 
-- （5） LLMNR：设置为no，它将不会监听5355端口。
+- （5） LLMNR：链路本地多播名称解析，设置为no，它将不会监听5355端口。
+
+- （6） MulticastDNS：多播的DNS查询关闭
 
 启动并允许开机启动：
 
@@ -251,7 +260,9 @@ sudo systemctl enable systemd-resolved.service
 sudo systemctl start systemd-resolved.service
 ```
 
-由于使用了 **systemd-resolved** ，dns更新与传统的保持一致，让 **/etc/resolv.conf -> /run/systemd/resolve/resolv.conf** ，保证更新一致。
+由于使用了 **systemd-resolved** ，dns更新与传统的保持一致。
+
+让 **/etc/resolv.conf -> /run/systemd/resolve/resolv.conf** ，保证更新一致。
 
 ```bash
 sudo ln -s /run/systemd/resolve/resolv.conf /etc/resolv.conf
@@ -271,7 +282,9 @@ sudo ln -s /run/systemd/resolve/resolv.conf /etc/resolv.conf
 
     
 
-    在linux下，IP并不是绑定网卡的，可能出现这样的情况，A网卡收到一个arp查询，查询的目的IP是B网卡的，但是它可能响应A网卡的MAC地址，而不是B网卡的。我不想出现，外网企图询问lan口ip，也会获得一个应答。下面的调整，将检查查询请求的源地址，它查询的目的IP，不符合规则，则不做出响应。
+在linux下，IP并不是绑定网卡的，可能出现这样的情况，A网卡收到一个arp查询，查询的目的IP是B网卡的，但是它可能响应A网卡的MAC地址，而不是B网卡的。
+
+我不想出现，外网企图询问lan口ip，也会获得一个应答。下面的调整，将检查查询请求的源地址，它查询的目的IP，不符合规则，则不做出响应。
 
 添加以下配置：
 
@@ -291,11 +304,12 @@ net.ipv4.conf.default.rp_filter = 1
 调整说明：
 
 - accept_source_route = 0 不接受路由报头。
+
 - arp_announce = 2 定义接口上发送的ARP请求中的IP报文宣布本端源IP地址的不同限制级别，当值为2时，总是为这个目标使用最佳的本地地址。在这种模式下，忽略IP包中的源地址，并尝试选择我们喜欢的本地地址与目标主机进行对话。通过在包含目标IP地址的出接口的所有子网中查找主IP地址来选择这种本地地址。如果没有找到合适的本地地址，我们就选择出接口或所有其他接口上的第一个本地地址，希望能够收到对我们请求的回应，甚至有时不管我们宣布的源IP地址是什么。
+
 - arp_ignore = 1 对于收到的解析本端目标IP地址的ARP请求，定义不同的应答方式，值为1时，只有当目标IP地址为入接口上配置的本端地址时才进行应答。
+
 -  rp_filter = 1 严格模式RFC3704中定义的严格反向路径对每个入方向的报文进行FIB测试，如果接口不是最佳反向路径则报文检查失败。缺省情况下，失败的报文将被丢弃。
-
-
 
 
 
@@ -307,11 +321,13 @@ net.ipv4.conf.default.rp_filter = 1
 
 - 允许从内网主动发起的链接通过。
 
+- 已经建立的连接可以通过。
+
 - 允许局域网内访问网关计算机。
 
-- 网关计算机允许被ping。
+- ICMP协议放行（可以被ping）。
 
-- 从lan口流入内核，又没从lan口流出的流量，并且源ip符合ip段的流量，在postrouting钩子下的链要做masquerade规则，做特殊的SNAT，在本路由器处，做源地址转换，替换成`wan`口的网络地址，当数据包返回的时候，将目的地址替换成远程访问的IP。
+- 不是从wan口流入到内核的，又路由到从wan口流出的流量（即内网上网流量），在 postrouting 钩子下的链要做 masquerade 规则，做特殊的SNAT，在本路由器处，做源地址转换，替换成`wan`口的网络地址，当数据包返回的时候，将目的地址替换成远程访问的IP。
 
 > 此处的规则有个坑，因为 `input` 钩子下的规则，默认的行为是把阻止链接，如果网关计算机要监听某个端口，需要在 `/etc/nftables.conf` 里添加放行规则。
 
@@ -320,10 +336,10 @@ net.ipv4.conf.default.rp_filter = 1
 ```bash
 flush ruleset
 
-# IPv4协议簇的表，用于储存nat相关的规则，此处只用到prerouting和postrouting的钩子
-# 这里有个问题，如果{后的空行，因为对齐的原因被补全了个tab，可能出现语法错误，如果单独空行，不应该用任何的空白符号占用它，但是可以用回车换行，单行即无注释又无定义语句，且有空白字符占用空行，可能出现多余的字符造成错误
-table ip nat {
+# IPv4协议簇的表，用于储存nat相关的规则，此处只用到 prerouting 和 postrouting 的钩子
+# 这里有个问题，如果{后的空行，因为对齐的原因被补全了个tab，可能出现语法错误，如果单独空行，不应该用任何的空白符号占用它，但是可以用回车换行，单行即无注释又无定义语句，且有空白字符占用空行，可能出现多余的字符造成nft语法解释错误
 
+table ip nat {
         chain prerouting-public {
             type nat hook prerouting priority 100; policy accept
             #如果需要端口转发，则在PREROUTING钩子的链做DNAT
@@ -333,21 +349,26 @@ table ip nat {
         chain postrouting-public {
                 type nat hook postrouting priority 100; policy accept;
                 #做动态SNAT （备注②）
-                meta iif lan oif != lan ip saddr 192.168.31.0/24 masquerade comment "lan口流量外网NAT规则"
+                meta oif wan iif != wan ip saddr 192.168.31.0/24 masquerade comment "外网NAT规则"
         }
 }
 
 
 # IPv4防火墙规律规则，主要针对进本机的流量
 table ip filter {
+        ct helper ftp-standard {
+                type "ftp" protocol tcp;
+        }
         chain input-public {
                 #默认的策略是不允许流量通过
                 type filter hook input priority 0; policy drop;
 
                 iif {lo,lan} accept comment "允许lo口、lan口流进的内网流量通过"
-                icmp type echo-request counter accept  comment "允许被ping"
+                ip protocol { icmp, igmp } counter accept  comment "ICMP/IGMP放行"
+                tcp dport ftp ct helper set "ftp-standard" comment "ftp放行"
                 #备注①
-                ct state established,related accept comment "允许从内部主动发起的链接通过"
+                ct state {established,related} accept comment "允许从内部主动发起的链接通过"
+                ct state invalid counter drop comment "记录并抛弃不符合ct规则的流量"
         }
 }
 
@@ -357,20 +378,27 @@ table ip6 filter {
         chain input-public {
                 type filter hook input priority 0; policy drop
                 ct state established,related accept comment "允许从内部主动发起的链接通过"
+                ct state invalid counter drop comment "记录并抛弃不符合ct规则的流量"
                 iif {lo, lan} accept comment "允许lo口、lan口流进的内网流量通过"
-                icmpv6 type {echo-request,nd-neighbor-solicit} accept comment "允许被ping"
+                ip6 nexthdr { icmp } accept comment "ICMP放行"
         }
 }
 ```
 
-> 备注①：**ct state established,related accept;** 这条规则匹配链接状态的，链接状态和iptables的保持一致，有4种状态，**ESTABLISHED**、**NEW**、**RELATED**及**INVALID**，链接过程，客户端发出请求，服务端返回结果，刚好源地址/目的地址是相反的，第一个穿越防火墙的数据包，链接状态是**NEW**，后续的数据包（无论是请求还是应答）链接状态是**ESTABLISHED**，有一种情况，类似于FTP，区分数据端口和控制端口的，被动产生的数据包，第一个，但是不属于任何链接中的，它的状态是**RELATED**，而这个链接产生后，这条链路后续的数据包状态都是**ESTABLISHED**，最后一种是三种状态之外的数据包。
+> 备注①：**ct state {established,related} accept;** 这条规则匹配链接状态的，链接状态和iptables的保持一致，有4种状态，**ESTABLISHED** 、 **NEW** 、 **RELATED** 及 **INVALID** ，
+> 客户端发出请求，服务端返回结果，源地址/目的地址刚好是相反的，第一个穿越防火墙的数据包，链接状态是 **NEW** ，
+> 后续的数据包（无论是请求还是应答）链接状态是 **ESTABLISHED** ，有一种情况，类似于FTP，区分数据端口和控制端口的，被动产生的数据包，他需要helper获取数据端口，并在规则中放行。
+> 第一个包，但是不属于任何链接中的，它的状态是 **RELATED** ，而这个链接产生后，这条链路后续的数据包状态都是 **ESTABLISHED** ，
+> 最后一种是三种状态之外的数据包。
 
 
 具体的情况分析：
 
-- （1） 由本地作为客户端，主动去访问服务端（就好像我们访问网站的情况），此时我们的请求，发送出去，我们第一个数据包是NEW状态,netfilter追踪这个链接的状态。
+- input hook 拦截的是流往本机的，
 
-- （2） 请求发出后，这条链路下一个返回的数据包，已经是 **ESTABLISHED** 状态了，但是如果此时防火墙，没有允许相关状态的链接通过，默认策略是drop的，会导致我们的包可以发出去，但是回来时被input默认DROP规则过滤。
+- （1） debian路由器本机作为客户端，主动去访问服务端（我们访问网站的情况），此时请求包发送出去，第一个数据包是 NEW 状态, netfilter 追踪这个链接的状态。
+
+- （2） 请求发出后，这条连接下一个返回的数据包，已经是 **ESTABLISHED** 状态了，但是如果此时防火墙，没有允许相关状态的链接通过，默认策略是drop的，会导致我们的包可以发出去，但是回来时被 input 默认 DROP 策略过滤。
 
 - （3） 允许 **ESTABLISHED** 状态的数据包通过，可以让本机主动发出的请求后，回来的数据包，可以通过防火墙。
 
