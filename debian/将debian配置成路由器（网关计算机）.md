@@ -256,8 +256,7 @@ LLMNR=no
 启动并允许开机启动：
 
 ```bash
-sudo systemctl enable systemd-resolved.service
-sudo systemctl start systemd-resolved.service
+sudo systemctl --now enable systemd-resolved.service
 ```
 
 由于使用了 **systemd-resolved** ，dns更新与传统的保持一致。
@@ -305,7 +304,7 @@ net.ipv4.conf.default.rp_filter = 1
 
 - accept_source_route = 0 不接受路由报头。
 
-- arp_announce = 2 定义接口上发送的ARP请求中的IP报文宣布本端源IP地址的不同限制级别，当值为2时，总是为这个目标使用最佳的本地地址。在这种模式下，忽略IP包中的源地址，并尝试选择我们喜欢的本地地址与目标主机进行对话。通过在包含目标IP地址的出接口的所有子网中查找主IP地址来选择这种本地地址。如果没有找到合适的本地地址，我们就选择出接口或所有其他接口上的第一个本地地址，希望能够收到对我们请求的回应，甚至有时不管我们宣布的源IP地址是什么。
+- arp_announce = 2 定义接口上发送的ARP请求中的IP报文宣布本端源IP地址的不同限制级别，当值为2时，总是为这个目标使用最佳的本地地址。在这种模式下，忽略IP包中的源地址，并尝试选择喜欢的本地地址与目标主机进行对话。通过在包含目标IP地址的出接口的所有子网中查找主IP地址来选择这种本地地址。如果没有找到合适的本地地址，我们就选择出接口或所有其他接口上的第一个本地地址，希望能够收到对请求的回应，甚至有时不管我们宣布的源IP地址是什么。
 
 - arp_ignore = 1 对于收到的解析本端目标IP地址的ARP请求，定义不同的应答方式，值为1时，只有当目标IP地址为入接口上配置的本端地址时才进行应答。
 
@@ -396,9 +395,9 @@ table ip6 filter {
 
 - input hook 拦截的是流往本机的，
 
-- （1） debian路由器本机作为客户端，主动去访问服务端（我们访问网站的情况），此时请求包发送出去，第一个数据包是 NEW 状态, netfilter 追踪这个链接的状态。
+- （1） debian路由器本机作为客户端，主动去访问服务端（访问网站的情况），此时请求包发送出去，第一个数据包是 NEW 状态, netfilter 追踪这个链接的状态。
 
-- （2） 请求发出后，这条连接下一个返回的数据包，已经是 **ESTABLISHED** 状态了，但是如果此时防火墙，没有允许相关状态的链接通过，默认策略是drop的，会导致我们的包可以发出去，但是回来时被 input 默认 DROP 策略过滤。
+- （2） 请求发出后，这条连接下一个返回的数据包，已经是 **ESTABLISHED** 状态了，但是如果此时防火墙，没有允许相关状态的链接通过，默认策略是drop的，会导致返回的包可以发出去，但是回来时被 input 默认 DROP 策略过滤。
 
 - （3） 允许 **ESTABLISHED** 状态的数据包通过，可以让本机主动发出的请求后，回来的数据包，可以通过防火墙。
 
@@ -524,7 +523,7 @@ lan/
 
 --conf-file 配置文件的路径
 
---dhcp-leasefile 租约记录文件的路径，这个文件由dnsmasq自己管理，我们不改动内容
+--dhcp-leasefile 租约记录文件的路径，这个文件由dnsmasq自己管理，不改动内容
 
 --dhcp-hostsfile 针对特定的mac，分配ip绑定的主机配置，如果是文件夹，则读取文件夹下所有的文件，此处使用的是文件夹，一个文件对应一个主机。
 
@@ -594,13 +593,14 @@ nameserver 223.5.5.5 223.6.6.6
 
 ```bash
 sudo systemctl daemon-reload
-sudo systemctl start dnsmasq@lan.service
+
+# 允许开机自启,并启动服务
+sudo systemctl --now enable dnsmasq@lan.service
 
 # 查看服务工作状况
 sudo systemctl status dnsmasq@lan.service
 
-# 允许开机自启
-sudo systemctl enable dnsmasq@lan.service
+
 ```
 
 ---
@@ -629,8 +629,6 @@ pppoe包包含了一些启动脚本
 
 pppoe包依赖ppp包，而ppp包又包含了一些ppp协议相关支持
 
-
-
 PPPoE方式上网需要改动wan口的配置，上述wan采用的是dhcp/静态IP上网的方式，pppoe上网可能需要解决一些问题
 
 - ppp拨号
@@ -638,11 +636,11 @@ PPPoE方式上网需要改动wan口的配置，上述wan采用的是dhcp/静态I
 
 pppoe上网，wan口是不需要配置ip地址的，因为流量经过pppoe协议封装。我将做以下调整
 
-添加 **netdev** 配置 ，将一个wan口扩展成两个虚拟的网络接口，一个用于ppp拨号，一个用于连接光猫的管理接口，注意他们的mac地址是不一样的。
+- 添加 **netdev** 配置 ，将一个wan口扩展成两个 macvtap 虚拟的网络接口，一个用于pppoe拨号，一个用于连接光猫的管理接口，注意他们的mac地址是不一样的。
 
-添加 **.network** 配置，设定wan口与其他虚拟网络接口的绑定关系，再设置每个接口的IP设置。
+- 添加 **.network** 配置，设定wan口与其他虚拟网络接口的绑定关系，再设置每个接口的IP设置。
 
-由于pppoe拨号的接口是不需要IP地址的，我们将DHCP关闭。
+由于pppoe拨号的接口是不需要IP地址的，将DHCP关闭。
 
 假设光猫的管理接口是192.168.1.1，虚拟接口与他同网段192.168.1.2的静态IP
 
@@ -658,6 +656,7 @@ MACAddress=23:33:33:33:33:06
 Mode=private
 
 
+
 # /etc/systemd/network/01-wan-ppp.netdev
 [NetDev]
 Description=wan-ppp 虚拟网卡用于PPPOE拨号
@@ -667,6 +666,7 @@ MACAddress=23:33:33:33:33:07
 
 [MACVTAP]
 Mode=private
+
 
 
 #  /etc/systemd/network/01-wan.network
@@ -759,11 +759,33 @@ WantedBy=multi-user.target
 这个配置文件可能还是存在一些问题的，但是勉强能用，主要是让这个服务，要在wan接口启动后，才能启动它（我感觉在network-pre.target之后也行。。。），启动并允许开启自启
 
 ```bash
-sudo systemctl enable pppoe
-sudo systemctl start pppoe
+sudo systemctl --now enable pppoe
 ```
 
+当然这样LAN下的主机没法直接上网，因为老的nft规则，只是针对wan口做了masqrade，引进了，wan-modem, wan-ppp两个虚拟接口
 
+所以要进行修改新的规则以适应实际情况
+
+ppp0网络接口是拨号后创建的，它在系统运行期间可能会丢，如果此时使用iif，它找不到这个网口，会报错，所以iif用iifname代替，匹配网络接口名的字符串。
+
+wiki描述，iif效率更高一些，实际使用起来问题不大。
+
+```
+table ip nat {
+        chain prerouting-public {
+            type nat hook prerouting priority 100; policy accept
+            #如果需要端口转发，则在PREROUTING钩子的链做DNAT
+            iif wan tcp dport 65533 dnat to 192.168.31.2:22 comment "dnat: :65533 => 192.168.31.2:22"
+            # 把wan口进来的流量，目标端口是65533的发往192.168.31.2的22端口
+        }
+        chain postrouting-public {
+                type nat hook postrouting priority 100; policy accept;
+                #做动态SNAT （备注②）
+                meta iif wan-modem oif != wan-modem masquerade comment "内网访问光猫网段"
+                meta iifname "ppp0" oifname != "ppp0" masquerade comment "pppoe拨号上网NAT规则"
+        }
+}
+```
 
 
 
@@ -777,7 +799,7 @@ TODO:
 
 - 网卡启动和关闭时，通过udev规则触发服务重启
 
-> 笔记最后更新时间：2021-04-02
+> 笔记最后更新时间：2022-2-10
 
 ---
 
@@ -788,6 +810,8 @@ TODO:
 # 参考文档
 
 - [linux内核网络sysctl调参参考文档](https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/tree/Documentation/networking/ip-sysctl.rst)
+
+- IPv6分配，由于IPv4和IPv6的DHCP分配地址方式不一样，具体详细的选项，还需要琢磨下手册。
 
 - [systemd中文手册](http://www.jinbuguo.com/systemd/systemd.index.html)
 
