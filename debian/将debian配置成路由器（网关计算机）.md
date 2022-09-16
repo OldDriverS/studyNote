@@ -4,7 +4,7 @@
 
 还需要继续的配置学习：
 
-- tc流量控制
+- tc流量控制（学习了部分）
 
 - 多个wan口配置及均衡负载
 
@@ -26,6 +26,7 @@
 
 - 可以设置端口映射
 
+- docker扩展
 
 # 硬件
 
@@ -46,6 +47,14 @@
 **流量控制和策略路由** ：iproute2 
 
 ---
+
+# 需要注意的地方
+
+- ssh的22端口不应该暴露到公网去。
+
+- 应该尽可能地过滤掉从公网发往本地的请求，路由器上网发起请求大部分情况下都是由内网往公网方向发起的连接。
+
+
 
 # 配置思路
 
@@ -89,6 +98,7 @@ sudo apt install nftables dnsmasq iproute2
     link/ether 23:33:33:33:33:05 brd ff:ff:ff:ff:ff:ff
     inet 192.168.31.33/24 brd 192.168.31.255 scope global dynamic 
 ```
+
 **link/ehter** 项目对应的是 mac地址，记住他们
 
 - **wan网络接口：** `23:33:33:33:33:04`
@@ -131,19 +141,23 @@ Name=lan  # 新的接口名称
 ```
 
 
-## 切换 `systemd-networkd` 接管网卡，卸载networking和NetWorkManager服务
+## 切换 `systemd-networkd` 接管网卡，卸载 `networking` 和 `NetWorkManager` 服务
 
 - 使用 `ifupdown` 包做网络管理，对应的服务为`networking.service`
 
 - 使用 `network-manager` 对应的则是`NetworkManager.service`
 
-网络管理软件可能通过两个源头来触发网络配置：服务与udev规则；如果禁用服务失败，需要考虑是否因为udev的rule触发事件导致配置变化。
+网络管理软件可能通过两个源头来触发网络配置：服务与udev规则；
+
+如果禁用服务后仍然受影响，需要考虑是否因为udev的规则触发事件导致配置变化。
 
 应该避免多个网络管理服务对同一个网络接口重复配置，这样会出现配置上到冲突。
 
+debian默认使用ifupdown作为网络管理服务，当安装桌面后，还将使用network-manager。
+
 桌面环境通过NetworkManager来配置网络的，如需systemd-networkd与NetworkManager共存，可以用nmcli配置NetworkManager放弃对网络接口的管理（unmanaged）。
 
-简单粗暴的做法是，仅保留一个网络管理服务。
+简单粗暴的做法是仅保留一个网络管理服务。
 
 ### 1.卸载其他网络管理
 
@@ -155,7 +169,7 @@ sudo apt purge ifupdown network-manager
 
 - **systemd-networkd.service**（网络管理服务）
 
-- **systemd-networkd-wait-online.service**（等待网络在线服务，用于阻塞）
+- **systemd-networkd-wait-online.service**（等待网络在线服务，用于到达network-online.target阻塞作用）
 
 它还需要域名解释的相关服务：**systemd-resolved.service**
 
@@ -174,7 +188,7 @@ sudo touch /etc/systemd/network/10-lan.network
 
 ### 3.编辑规则
 
-> 注：wan口暂时没有学习配置PPPOE拨号，还得继续学习。
+#### wan口通过DHCP方式上网的配置
 
 wan口暂时设置为DHCP方式上网
 
@@ -267,8 +281,6 @@ sudo systemctl --now enable systemd-resolved.service
 sudo ln -s /run/systemd/resolve/resolv.conf /etc/resolv.conf
 ```
 
-
-
 ## sysctl调整参数
 
 对于内核网络调整方面接触较少，本节网上抄作业，但是调整参数选项的含义需要参考[linux内核网络文档](https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/tree/Documentation/networking/ip-sysctl.rst)。
@@ -320,13 +332,13 @@ net.ipv4.conf.default.rp_filter = 0
 
 - 允许从内网主动发起的链接通过。
 
-- 已经建立的连接可以通过。
+- 已经建立的连接双向均可通过，外网<->内网。
 
 - 允许局域网内访问网关计算机。
 
 - ICMP协议放行（可以被ping）。
 
-- 不是从wan口流入到内核的，又路由到从wan口流出的流量（即内网上网流量），在 postrouting 钩子下的链要做 masquerade 规则，做特殊的SNAT，在本路由器处，做源地址转换，替换成`wan`口的网络地址，当数据包返回的时候，将目的地址替换成远程访问的IP。
+- 不是从wan口流入到内核的，又路由到从wan口流出的流量（即内网上网流量），在 postrouting 钩子下的链要做 masquerade 规则，做特殊的SNAT，在本路由器处，做源地址转换，替换成 `wan` 口的网络地址，当数据包返回的时候，将目的地址替换成远程访问的IP。
 
 > 此处的规则有个坑，因为 `input` 钩子下的规则，默认的行为是把阻止链接，如果网关计算机要监听某个端口，需要在 `/etc/nftables.conf` 里添加放行规则。
 
@@ -363,12 +375,20 @@ table ip filter {
                 type filter hook input priority 0; policy drop;
 
                 iif {lo,lan} accept comment "允许lo口、lan口流进的内网流量通过"
-                ip protocol { icmp, igmp } counter accept  comment "ICMP/IGMP放行"
-                tcp dport ftp ct helper set "ftp-standard" comment "ftp放行"
                 #备注①
                 ct state {established,related} accept comment "允许从内部主动发起的链接通过"
+                ip protocol { icmp, igmp } counter accept  comment "ICMP/IGMP放行"
+                tcp dport ftp ct helper set "ftp-standard" comment "ftp放行"
                 ct state invalid counter drop comment "记录并抛弃不符合ct规则的流量"
         }
+
+	chain forward-public {
+                type filter hook input priority 0; policy drop;
+                iif {lo,lan} accept comment "允许lo口、lan口流进的内网流量通过"
+                #备注①
+                ct state {established,related} accept comment "允许从内部主动发起的链接通过"
+		ct status dnat accept comment "dnat状态的连接可以通过,作用于端口映射"
+	}
 }
 
 
@@ -381,29 +401,75 @@ table ip6 filter {
                 iif {lo, lan} accept comment "允许lo口、lan口流进的内网流量通过"
                 ip6 nexthdr { icmp } accept comment "ICMP放行"
         }
+
+	chain forward-public {
+                type filter hook input priority 0; policy drop;
+                iif {lo,lan} accept comment "允许lo口、lan口流进的内网流量通过"
+	}
+
 }
 ```
 
-> 备注①：**ct state {established,related} accept;** 这条规则匹配链接状态的，链接状态和iptables的保持一致，有4种状态，**ESTABLISHED** 、 **NEW** 、 **RELATED** 及 **INVALID** ，
-> 客户端发出请求，服务端返回结果，源地址/目的地址刚好是相反的，第一个穿越防火墙的数据包，链接状态是 **NEW** ，
-> 后续的数据包（无论是请求还是应答）链接状态是 **ESTABLISHED** ，有一种情况，类似于FTP，区分数据端口和控制端口的，被动产生的数据包，他需要helper获取数据端口，并在规则中放行。
-> 第一个包，但是不属于任何链接中的，它的状态是 **RELATED** ，而这个链接产生后，这条链路后续的数据包状态都是 **ESTABLISHED** ，
-> 最后一种是三种状态之外的数据包。
+聊一下 `ct state`，通过`nft describe` 命令可以看到它的合法的值
+
+```bash
+~ $ nft describe ct state
+ct expression, datatype ct_state (conntrack state) (basetype bitmask, integer), 32 bits
+
+pre-defined symbolic constants (in hexadecimal):
+        invalid                         0x00000001
+        new                             0x00000008
+        established                     0x00000002
+        related                         0x00000004
+        untracked                       0x00000040
+```
+
+备注①：**ct state {established,related} accept;** 这条规则匹配链接状态的，链接状态和iptables的保持一致，有4种状态，**ESTABLISHED** 、 **NEW** 、 **RELATED** 及 **INVALID** ，untracked状态是被放弃连接跟踪的，他是无状态的，没法判断它到底属于哪种。
+
+客户端发出请求，服务端返回结果，源地址/目的地址刚好是相反的，第一个穿越防火墙的数据包，链接状态是 **NEW** ，
+
+后续的数据包（无论是请求还是应答）链接状态是 **ESTABLISHED** ，有一种情况，类似于FTP，区分数据端口和控制端口的，被动产生的数据包，他需要helper获取数据端口，并在规则中放行。
+
+第一个包，但是不属于任何链接中的，它的状态是 **RELATED** ，而这个链接产生后，这条链路后续的数据包状态都是 **ESTABLISHED** ，
+
+invalid 是所有状态之外情况的数据包。
+
+又有新的问题来了，对于端口映射这种情况，怎么区分是端口映射的数据包并且让他通过防火墙？
+
+利用另外一种状态的判断，`ct status`
+
+```bash
+~ $ nft describe ct status
+ct expression, datatype ct_status (conntrack status) (basetype bitmask, integer), 32 bits
+
+pre-defined symbolic constants (in hexadecimal):
+        expected                        0x00000001
+        seen-reply                      0x00000002
+        assured                         0x00000004
+        confirmed                       0x00000008
+        snat                            0x00000010
+        dnat                            0x00000020
+        dying                           0x00000200
+```
+
+由于nat发生在prerouting上的规则，dnat后，转发至其他主机，可能会走forward，forward默认规则设定成了DROP，因此在forward处还得放行ct state不为established，但是ct status 为dnat的数据包。
+
+不满足条件的数据包在forward处丢弃了。
 
 
-具体的情况分析：
+带状态的防火墙具体的情况分析：
 
 - input hook 拦截的是流往本机的，
 
-- （1） debian路由器本机作为客户端，主动去访问服务端（访问网站的情况），此时请求包发送出去，第一个数据包是 NEW 状态, netfilter 追踪这个链接的状态。
+- （1） debian路由器本机作为客户端，主动去访问服务端（访问网站的情况），此时请求包发送出去，第一个数据包是 NEW 状态, netfilter 跟踪这条链接的状态。
 
-- （2） 请求发出后，这条连接下一个返回的数据包，已经是 **ESTABLISHED** 状态了，但是如果此时防火墙，没有允许相关状态的链接通过，默认策略是drop的，会导致返回的包可以发出去，但是回来时被 input 默认 DROP 策略过滤。
+- （2） 请求发出后，被回应时，这条连接下一个返回的数据包，已经是 **ESTABLISHED** 状态，往后都保持这个状态，但是如果此时防火墙，没有配置允许相关状态的链接通过，默认策略又设定为drop，会导致返回的包可以发出去，但是回来时被 input 默认 DROP 策略过滤。
 
-- （3） 允许 **ESTABLISHED** 状态的数据包通过，可以让本机主动发出的请求后，回来的数据包，可以通过防火墙。
+- （3） 允许 **ESTABLISHED** 状态的数据包通过，可以让本机主动发出的请求后，回来的数据包也可以顺利通过防火墙。
 
-> 备注②：masquerade 是一种特殊的SNAT,按nftables的wiki说明，它只有在postrouting的钩子下才有意义的，此时，已经选中了路由，准备要发往对应的网卡了，masquerade会把源ip替换成该网卡对应的ip，然后记录这条信息，当数据返回的时候（prerouting），它会查找记录，又会把masquerade前的源ip替换成目的的IP（DNAT），这样，相当于“隐藏”了网关计算机自身，把链路转发到masquerade前的源ip主机。
+> 备注②：masquerade 是一种特殊的SNAT,按nftables的wiki说明，它只有在postrouting的钩子下才有意义的，此时，已经选中了路由，准备要发往对应网卡发送队列了，masquerade会把源ip替换成该网卡对应的ip，然后记录这条信息，当数据返回的时候（prerouting），它会查找记录，又会把NAT前的源ip替换成目的的IP（DNAT），这样，相当于“隐藏”了网关计算机自身，把链路转发到masquerade前的源ip主机。
 
-nftables 不像 iptables 有内置的链，它是没有预设的链的，链的名称可以用户自定义，但是nftables兼容iptables的配置，如果使用docker的时候，就容易出现一个问题，docker会改动防火墙规则，同时它会清空我的链，所以，我应该与内置链的名称不一致，保证它不会被清空.
+nftables 不像 iptables 有内置的链，它是没有预设的链的，链的名称可以用户自定义，但是nftables兼容iptables的配置，如果使用docker的时候，就容易出现一个问题，docker会改动防火墙规则，同时它会清空我的链，所以我并不喜欢让docker使用iptables做端口映射,内网直接通过路由转发来访问容器IP，
 
 
 ## DNS/DHCP服务配置
@@ -421,7 +487,7 @@ sudo apt install dnsmasq
 
 ### 2.配置
 
-把 `dnsmasq`默认的配置都不要了,把sysV启动的软连接全部删了，把 `dnsmasq.service` 的服务也删除了。可以满足多个网卡配置dnsmasq，不应该使用包内自带的服务配置，由自己编辑一个适合情况的配置文件。
+把 `dnsmasq` 默认的配置都不要了,把sysV启动的软连接全部删了，把 `dnsmasq.service` 的服务也删除了。可以满足多个网卡配置dnsmasq，不应该使用包内自带的服务配置，由自己编辑一个适合情况的配置文件。
 
 ```sh
 #删除sysV init 开机自启的软连接
@@ -439,6 +505,7 @@ sudo touch /etc/systemd/system/dnsmasq@.service
 ```
 
 编写 `/etc/systemd/system/dnsmasq@.service` 内容：
+
 ```ini
 # /etc/systemd/system/dnsmasq@.service
 
@@ -484,7 +551,6 @@ sudo touch /opt/router-config/dnsmasq/lan/resolv.conf
 sudo mkdir -p /var/log/dnsmasq
 # 创建pid文件
 sudo touch /run/dnsmasq@lan.pid 
-
 ```
 
  -  `/var/log/dnsmasq` 为日志文件夹，文件夹下，`网卡名.log` 为不同服务实例独立的日志。例如 `lan.log`
@@ -512,6 +578,7 @@ lan/
 
 
 配置说明：
+
 ```bash
 --except-interface 排除监听的网卡，此处设定不监听lo（127.0.0.1）。
 
@@ -655,8 +722,6 @@ MACAddress=23:33:33:33:33:06
 [MACVTAP]
 Mode=private
 
-
-
 # /etc/systemd/network/01-wan-ppp.netdev
 [NetDev]
 Description=wan-ppp 虚拟网卡用于PPPOE拨号
@@ -766,7 +831,7 @@ sudo systemctl --now enable pppoe
 
 所以要进行修改新的规则以适应实际情况
 
-ppp0网络接口是拨号后创建的，它在系统运行期间可能会丢，如果此时使用iif，它找不到这个网口，会报错，所以iif用iifname代替，匹配网络接口名的字符串。
+ppp0网络接口是拨号后创建的，它在系统运行期间,因为pppoe重新拨号可能会丢接口，如果此时使用iif，它找不到这个网口，会报错，所以iif用iifname代替，匹配网络接口名的字符串。
 
 wiki描述，iif效率更高一些，实际使用起来问题不大。
 
@@ -784,11 +849,15 @@ table ip nat {
                 meta iif wan-modem oif != wan-modem masquerade comment "内网访问光猫网段"
                 meta iifname "ppp0" oifname != "ppp0" masquerade comment "pppoe拨号上网NAT规则"
         }
+
+	chain forward-public {
+                type filter hook input priority 0; policy drop;
+                iif {lo,lan} accept comment "允许lo口、lan口流进的内网流量通过"
+                ct state {established,related} accept comment "允许从内部主动发起的链接通过"
+		ct status dnat accept comment "允许dnat状态数据通过"
+	}
 }
 ```
-
-
-
 
 
 ---
@@ -802,8 +871,6 @@ TODO:
 > 笔记最后更新时间：2022-2-10
 
 ---
-
-
 
 
 
