@@ -49,6 +49,24 @@ md0 : active raid1 vda2[2] vdb2[1]
 ```
 
 
+在实验过程中遇上的一些困惑
 
 
+## 1.mdraid设备在引导的哪个过程中被组装的？
+
+grub有 `mdraid1x` 模块可以读取mdraid的设备，所以/boot/grub放在raid里也没关系，但是grubx64.efi需要单独放在一个EFI分区里，并且这个efi是包含了这些模块的，其他模块可以在/boot/grub里在载入，可以通过类似这样的命令制定模块包含在grub核心里
+
+```
+grub-install -v --modules="part_gpt part_msdos lvm mdraid09 mdraid1x" --efi-directory=/boot/efi --no-uefi-secure-boot --force-extra-removable --target=x86_64-efi
+```
+
+## 2.虽然grub能通过模块读取raid上的数据，但是，当载入linux后，内核如何读取raid上的数据？
+
+当启动linux内核后，还会载入initrd,装载raid的脚本就包含在initramfs里，这些脚本不需要我们自己编写，在安装系统的时候，把mdadm安装了，再update-initramfs即可。
+
+mdadm包有包含一部分打包到initramfs,还有个注意的地方，raid1使用到raid1.ko的，如果initramfs中没有包含这个ko,应该在 `/etc/initramfs-tools/modules` 中加入要打包到initramfs的内核模块。
+
+## 3.掉盘后EFI分区挂载失败导致的启动失败
+
+如果拿掉一个盘，会导致一个EFI分区不存在，挂载失败还是会阻塞开机，进入恢复模式，可以不要让efi分区开机自动挂载解决。
 
