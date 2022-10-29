@@ -1,19 +1,22 @@
 # 使用debootstrap安装debian系统笔记
 
-准备安装镜像：[debian-live-10.9.0-amd64-standard.iso 945M](https://mirrors.tuna.tsinghua.edu.cn/debian-cd/10.9.0-live/amd64/iso-hybrid/debian-live-10.9.0-amd64-standard.iso)
+> 当前stable是bullseye,涉及软件包名称无变化，笔记仍然可用。
+
+准备安装镜像：[debian-live-10.9.0-amd64-standard.iso 945M](https://opentuna.cn/debian-cd/10.9.0-live/amd64/iso-hybrid/debian-live-10.9.0-amd64-standard.iso)
 
 需要额外安装的软件包有
 
 ```c
-linux-image-amd64 -> debian内核镜像包
-systemd -> 新型的init程序
-grub-efi-amd64 -> 安装efi启动的grub
-makedev -> 创建/dev下的设备节点
-locales -> 语言包
-vim -> 文本编辑器
-openssh-server -> ssh服务
-sudo -> 临时授权
-bash-completion -> bash Tab补全
+linux-image-amd64  debian内核镜像包
+systemd  新型的init程序
+grub-efi-amd64  安装efi启动的grub
+makedev  创建/dev下的设备节点脚本
+locales  语言包
+vim  文本编辑器
+openssh-server  ssh服务
+sudo  临时授权
+bash-completion  bash Tab补全
+ca-certificates CA证书，https用的
 ```
 
 前期先制作启动盘，对于支持UEFI启动的PC，直接把iso内容解压到一个fat32格式的U盘根目录即可（保证U盘根目录下有个EFI文件夹），或者使用制作工具把iso制作成u盘启动盘，对于已有的debian系统给别的硬盘安装debian，则单独安装 **bootstrap** 即可。以下以iso基础镜像安装为例的笔记。
@@ -69,54 +72,49 @@ sudo su
 
 ## 2、确认网络状态
 
-debian的live镜像使用 **ifupdown**包的 **networking.service** 管理网络，在DHCP下的路由下自动分配IP比较容易管理。
+一共有三种网络管理软件可供选择
 
-启动系统后直接就可以通过DHCP获取到IP，如果特殊情况下没有网，或者需要手动管理。
+- systemd-networkd
+- ifupdown
+- NetworkManager
 
-如果需要手动管理网络，以下为使用 **systemd-networkd.service** 代替 **networking.service** 管理网络的配置。
+### 2.1 使用 systemd-networkd 配置网络
+
+以下为使用 **systemd-networkd.service** 代替 **networking.service** 管理网络的配置。
 
 先查看网卡和MAC地址：
 
 ```bash
-root@debian:~# ip addr
-1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN group default qlen 1000
+root@debian:~# ip link
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN mode DEFAULT group default qlen 1000
     link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
-    inet 127.0.0.1/8 scope host lo
-       valid_lft forever preferred_lft forever
-    inet6 ::1/128 scope host
-       valid_lft forever preferred_lft forever
-2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc mq state UP group default qlen 1000
-    link/ether 00:15:5d:1f:1b:27 brd ff:ff:ff:ff:ff:ff
-    inet6 fe80::215:5dff:fe1f:1b27/64 scope link
-       valid_lft forever preferred_lft forever
-3: eth1: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc mq state UP group default qlen 1000
-    link/ether 00:15:5d:1f:1b:29 brd ff:ff:ff:ff:ff:ff
-    inet 192.168.33.182/24 brd 192.168.33.255 scope global dynamic eth1
-       valid_lft 35935sec preferred_lft 35935sec
-    inet6 fe80::215:5dff:fe1f:1b29/64 scope link
-       valid_lft forever preferred_lft forever
+2: enp1s0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc pfifo_fast state UP mode DEFAULT group default qlen 1000
+    link/ether 52:54:00:59:b4:a0 brd ff:ff:ff:ff:ff:ff
 ```
 
-此处找到有2个网卡（序号2和3）eht0、eth1，mac地址为 **00:15:5d:1f:1b:27** 、 **00:15:5d:1f:1b:29** 
+此处找到有2个网卡（序号1和2）lo、enp1s0，mac地址为 **52:54:00:59:b4:a0** 
 
 新建一个systemd网络管理的模板 **/etc/systemd/network/01-lan.network** ，通过MAC地址匹配，这是DHCP分配IP的模板，一个网卡一个配置文件。
 
+情况1：使用dhcp分配IP
+
 ```ini
 [Match]
-MACAddress=00:15:5d:1f:1b:27
+MACAddress=52:54:00:59:b4:a0
 
 [Network]
 DHCP=yes
 ```
+情况2：使用静态IP设置
 
 如果是静态IP则需要指定IP（ **192.168.1.2** ）、网关( **192.168.1.1** )、DNS（ **223.5.5.5** ），
 
 ```ini
 [Match]
-MACAddress=00:15:5d:1f:1b:27
+MACAddress=52:54:00:59:b4:a0
 
 [Network]
-Address=192.168.1.2
+Address=192.168.1.2/24
 Gateway=192.168.1.1
 DNS=223.5.5.5
 ```
@@ -149,11 +147,46 @@ root@debian:~# systemctl status systemd-networkd
 root@debian:~# networkctl
 IDX LINK             TYPE               OPERATIONAL SETUP
   1 lo               loopback           carrier     unmanaged
-  2 eth0             ether              degraded    configuring
-  3 eth1             ether              routable    configured
+  2 enp1s0              ether           routable    configured
 ```
 
-绿色的 **routable** 、说明链路正常，此处用eth1上网。多个网卡上网优先级，使用`Metric=` 设定跃点值，跃点值越低，优先级越高。
+**routable** 、说明链路正常，此处用enp1s0上网。
+
+### 2.2 使用networking(ifupdown)配置网络
+
+debian的live镜像使用 **ifupdown** 包的 **networking.service** 管理网络，在DHCP下的路由下自动分配IP比较容易管理。
+
+启动系统后直接就可以通过DHCP获取到IP，如果特殊情况下没有网，或者需要手动管理。
+
+手动配置需要修改 `/etc/network/interfaces`
+
+情况1：使用dhcp分配
+
+```
+auto enp1s0
+iface enp1s0 inet dhcp
+```
+
+情况2：静态指定IP
+
+```
+auto enp1s0
+iface enp1s0 inet static
+    address 192.168.1.2/24
+    gateway 192.168.1.1
+```
+
+- auto 让指定接口在networking启动时配置生效
+- iface 指定该接口的参数
+
+
+修改DNS服务器地址
+
+```
+# /etc/resolv.conf
+nameserver 223.5.5.5
+```
+
 
 ## 3、更换软件换源
 
@@ -163,10 +196,10 @@ IDX LINK             TYPE               OPERATIONAL SETUP
 root@debian:~# nano  /etc/apt/sources.list
 ```
 
-替换成清华源的
+替换成opentuna的
 
 ```sources.list
-deb http://mirrors.tuna.tsinghua.edu.cn/debian/ buster main contrib non-free
+deb http://opentuna/debian/ buster main contrib non-free
 ```
 
  **ctrl+o** 保存文件，**ctrl+x**  退出nano，更新索引
@@ -193,7 +226,9 @@ root@debian:~# apt install debootstrap dosfstools
 
  **格式化硬盘前应该备份数据**
 
-确定硬盘
+### 5.1 确定安装系统的硬盘
+
+> 注意，sda是sata接口第一块硬盘，如果安装系统在nvme,则是nvme0n1,如果是虚拟机，半虚拟化硬盘virtio驱动则是vda,不同接口的块设备命名是不一样的，实际情况调整。
 
 ```bash
 root@debian:/mnt# lsblk
@@ -203,7 +238,36 @@ sda     8:0    0    50G  0 disk
 sr0    11:0    1   945M  0 rom  /usr/lib/live/mount/medium
 ```
 
-发现sda硬盘就是需要装系统的硬盘
+根据容量可以区分，发现sda硬盘就是需要装系统的硬盘
+
+> 如果容量没法区分，可以根据SMART信息确认硬盘
+
+```
+# apt install smartmontools
+# # smartctl -i /dev/sdc
+smartctl 7.2 2020-12-30 r5155 [x86_64-linux-5.10.0-18-amd64] (local build)
+Copyright (C) 2002-20, Bruce Allen, Christian Franke, www.smartmontools.org
+
+=== START OF INFORMATION SECTION ===
+Model Family:     Samsung based SSDs
+Device Model:     Samsung SSD 860 EVO 250GB
+Serial Number:    S4CK********63V
+LU WWN Device Id: 5 002538 e7022bfeb
+Firmware Version: RVT03B6Q
+User Capacity:    250,059,350,016 bytes [250 GB]
+Sector Size:      512 bytes logical/physical
+Rotation Rate:    Solid State Device
+Form Factor:      2.5 inches
+TRIM Command:     Available, deterministic, zeroed
+Device is:        In smartctl database [for details use: -P show]
+ATA Version is:   ACS-4 T13/BSR INCITS 529 revision 5
+SATA Version is:  SATA 3.2, 6.0 Gb/s (current: 6.0 Gb/s)
+Local Time is:    Sat Oct 29 11:15:18 2022 CST
+SMART support is: Available - device has SMART capability.
+SMART support is: Enabled
+```
+以上是一块三星860 EVO 250GB，可以根据硬盘的型号，SN，容量，厂商等，情况区分不同的硬盘，选择一个目的硬盘。
+
 
 ```
 root@debian:/mnt# sudo fdisk /dev/sda
@@ -325,7 +389,19 @@ root@debian:/mnt# mount -t ext4 -o defaults,rw /dev/sda2 /mnt/root/
 
 ## 7、使用debootstrap下载基本系统并释放文件
 
-使用debootstrap工具构建一个基础的debian系统。镜像选择清华源。官网有参考用法
+```
+# debootstrap --help
+
+Usage: debootstrap [OPTION]... <suite> <target> [<mirror> [<script>]]
+Bootstrap a Debian base system into a target directory.
+
+```
+
+- suite 版本代号，例如 buster
+- target 释放的目的文件夹 例如 /mnt/root
+- mirror 景象站的地址，例如 http://opentuna.cn/debian
+
+使用debootstrap工具构建一个基础的debian系统。镜像选择opentuna。官网有参考用法
 
 ```
 debootstrap 版本名 ./释放目录 镜像网址
@@ -335,19 +411,19 @@ debootstrap wheezy ./wheezy-chroot http://http.debian.net/debian/
 以debian 10 buster为例，如果是其他版本，则需要将 `buster` 替换成对应的版本代码，例如，debian 11 是bullseye
 
 ```bash
-debootstrap --arch=amd64 buster /mnt/root https://mirrors.tuna.tsinghua.edu.cn/debian/
+debootstrap --arch=amd64 buster /mnt/root https://opentuna.cn/debian/
 ```
 
 因为需要安装一些软件包，所以包含进去，最终这样的
 
 ```bash
-debootstrap --arch=amd64 --include=linux-image-amd64,systemd,grub-efi-amd64,makedev,locales,vim,openssh-server,man,sudo,bash-completion buster /mnt/root https://mirrors.tuna.tsinghua.edu.cn/debian/
+debootstrap --arch=amd64 --include=linux-image-amd64,systemd,grub-efi-amd64,makedev,locales,vim,openssh-server,sudo,bash-completion,ca-certificates buster /mnt/root https://opentuna.cn/debian/
 ```
 
-如果速度太慢，也可以用网易云的,如下：
+也可以用网易云的,如下：
 
 ```bash
-debootstrap --arch=amd64 --include=linux-image-amd64,systemd,grub-efi-amd64,makedev,locales,vim,openssh-server,sudo,bash-completion buster /mnt/root http://mirrors.163.com/debian/
+debootstrap --arch=amd64 --include=linux-image-amd64,systemd,grub-efi-amd64,makedev,locales,vim,openssh-server,sudo,bash-completion,ca-certificates buster /mnt/root http://mirrors.163.com/debian/
 ```
 
  **debootstrap** 执行成功后提示，这个下载过程可能很漫长。
@@ -362,8 +438,6 @@ I: Base system installed successfully.
 root@debian:/mnt/root# mkdir /mnt/root/boot/EFI
 root@debian:/mnt/root# mount -t vfat -o defaults,rw /dev/sda1 /mnt/root/boot/EFI/
 ```
-
-
 
 ## 8、编辑文件系统挂载配置
 
@@ -395,39 +469,51 @@ UUID=7D8E-ABEB  /boot/efi       vfat    umask=0077      0       1
 ```
 
 
-
 ## 9、chroot到新系统根目录
 
 chroot前先挂载特殊的文件系统/proc /dev /sys等
 
 ```bash
-root@debian:/mnt/root# mount -t proc proc /mnt/root/proc
-root@debian:/mnt/root# mount -t sysfs sysfs /mnt/root/sys
+mount -t proc proc /mnt/root/proc
+mount -t sysfs sysfs /mnt/root/sys
+mount -o bind /dev /mnt/root/dev
 ```
 
-设置locales
+一般情况下，可以直接把/dev目录挂载到/mnt/root/dev，这样最省事
 
-```bash
-root@debian:~#  dpkg-reconfigure locales
-```
+安装grub的时候有用到。
 
-选择语言为 **en_US.UTF-8** ，切换根目录，更新软件索引
-
-```bash
-root@debian:/mnt/root# chroot /mnt/root/
-root@debian:~# apt updateapt update
-```
-
-创建/dev下的设备，在安装grub的时候有用到。
+也可以用mknod一个个设备节点创建出来，或者用MAKEDEV批量创建。
 
 ```bash
 root@debian:/# cd /dev
 root@debian:/dev# MAKEDEV sda
 ```
 
+还是用 `mount -o bind /dev /mnt/root/dev` 最省事，就不需要使用MAKEDEV了
 
 
-## 10、安装BootLoader
+```bash
+root@debian:/mnt/root# chroot /mnt/root/
+root@debian:~# apt updateapt update
+```
+
+设置locales，这是语言相关的包
+
+```bash
+root@debian:~#  dpkg-reconfigure locales
+```
+
+选择语言为 **en_US.UTF-8** 
+
+
+## 10、安装引导
+
+使用grub引导系统启动，grub会先载入内核和initrd
+
+initrd在内存展开一个临时的根分区，里面有一些早期初始化的程序和部分内核模块。
+
+然后在进一步挂载硬盘上的根分区。
 
 将grub安装到EFI分区
 
@@ -435,22 +521,22 @@ root@debian:/dev# MAKEDEV sda
 root@debian:~# grub-install -v  --efi-directory=/boot/EFI  --boot-directory=/boot --no-uefi-secure-boot --target=x86_64-efi
 ```
 
-安装成功后提示
+安装过程中，log较多，安装成功后提示
 
 ```
 Installation finished. No error reported.
 ```
 
-编辑grub配置文件。
+编辑grub配置文件，该文件会影响update-grub生成/boot/grub/grub.cfg。
 
 ```
 nano vim /etc/default/grub
 ```
 
-修改grub参数，注意root分区的UUID和新分区的uuid相同
+修改内核命令行参数，注意root分区的UUID和新系统根分区的uuid相同，指定使用的init,这里使用systemd
 
 ```
-GRUB_CMDLINE_LINUX_DEFAULT="root=UUID=\"1a909d07-88bb-4419-8e53-9640287111dd\" init=/usr/bin/systemd ro vga vt"
+GRUB_CMDLINE_LINUX_DEFAULT='root=UUID="1a909d07-88bb-4419-8e53-9640287111dd" init=/usr/bin/systemd ro vga vt'
 ```
 
 更新grub配置，更新initramfs
@@ -460,29 +546,31 @@ root@debian:~# update-initramfs -u
 root@debian:~# update-grub
 ```
 
+emmm...只是该配置不需要update-initramfs,如果根分区使用了软raid,在这个引导阶段，需要把mdadm相关的脚本包含进去，让RAID完成装载，才能进一步挂载RAID上的根分区。
 
+
+这个过程当然不用自己写，debian已经包含了这部分内容，只需要更新进去就好啦。
 
 ## 11、对新系统进行设置
 
-临时更改root用户密码
+更改新系统root用户密码
 
 ```bash
 root@debian:~# passwd root
 ```
 
-新系统因为没有配置网络，是没有网卡的配置，此处换回systemd-networkd
+新系统因为没有配置网络，没有网卡的配置，此处换回systemd-networkd
 
 配置新系统的网络接口（使用 `systemd-networkd` + `networkctl`  管理）：
 
 ```ini
 # /etc/systemd/network/01-lan.network
 [Match]
-MACAddress=00:15:5d:1f:1b:27
+MACAddress=52:54:00:59:b4:a0
 
 [Network]
 DHCP=yes
 ```
-
 
 修改允许root登陆ssh
 
@@ -496,6 +584,7 @@ root@debian:/etc/ssh# vim /etc/ssh/sshd_config
 PermitRootLogin yes
 ```
 
+这个只是方便启动系统后，远程ssh进系统进行后续的配置。。该完后应该把这个配置删掉，ssh不应该让root用户登陆，而是指定一个普通用户，使用sudo提权。
 
 
 ## 12、卸载文件系统、关闭临时系统
@@ -517,10 +606,7 @@ root@debian:/# systemctl poweroff
 ```
 
 
-
 # 启动新系统及配置
-
-
 
 ## 1、配置网络
 
@@ -530,11 +616,14 @@ root@debian:/# systemctl poweroff
 
 ```ini
 [Match]
-MACAddress=00:15:5d:1f:1b:27
+MACAddress=52:54:00:59:b4:a0
 
 [Network]
 DHCP=yes
 ```
+
+> 如果需要配置静态IP，参考前面在liveCD里配置网络的方法。
+
 
 处理系统服务，允许以下服务启动，并启动网络服务：
 
@@ -552,11 +641,9 @@ root@debian:~# systemctl start systemd-networkd
 ```bash
 root@debian:~# networkctl status
 ●        State: routable
-       Address: 192.168.33.183 on eth0
-                fe80::215:5dff:fe1f:1b2a on eth0
-       Gateway: 192.168.33.1 (Shenzhen Winyao Electronic Limited) on eth0
-           DNS: 192.168.33.1
-           NTP: 203.107.6.88
+        Address: 192.168.1.2 on enp1s0
+        Gateway: 192.168.1.1 on enp1s0
+
 ```
 
 可以尝试ping一个网址检测网络连通
@@ -608,9 +695,9 @@ i   kde-config-fcitx5                               - KDE configuration module f
 
 ---
 
-# 使用 **network-manager ** 作为网络管理
+# 使用 **network-manager** 作为网络管理
 
-目前在Debian下你可以选择的网络管理服务有：
+目前在Debian下可以选择的网络管理服务有：
 
 - systemd-networkd ： 属于systemd的一部分，但是这个貌似没有一个友好的GUI管理客户端，总靠配置文件来设置网络
 - ifupdown :  也就是教程中出现频率最高的networking服务，它包含了/etc/network/interfaces之类的配置
@@ -641,10 +728,10 @@ i   kde-config-fcitx5                               - KDE configuration module f
 在debootstrap释放准系统的时候。
 
 ```bash
-debootstrap --arch=amd64 --include=linux-image-amd64,systemd,grub-efi-amd64,makedev,locales,vim,openssh-server,man,sudo,bash-completion buster /mnt/root https://mirrors.tuna.tsinghua.edu.cn/debian/
+debootstrap --arch=amd64 --include=linux-image-amd64,systemd,grub-efi-amd64,makedev,locales,vim,openssh-server,sudo,bash-completion buster /mnt/root https://opentuna.cn/debian/
 ```
 
-如果已经错过了，安装完了系统，可以通过apt安装network-manager，然后禁用另外两种网络管理服务
+如果已经错过了，已经释放了基础系统，可以chroot后通过apt安装network-manager，然后禁用另外两种网络管理服务
 
 ```bash
 apt install network-manager
@@ -689,6 +776,194 @@ nmtui-hostname
 
 注意，如果NetworkManager服务未启动，无法使用以上命令，或者图形的客户端提示网络离线。
 
+
+# 将系统安装到RAID1上
+
+至少需要2块及以上的硬盘才能组RAID1，其他安装流程是类似的，主要的区别是在引导上。
+
+## 1.储存结构
+
+两块硬盘 vda vdb
+```
+NAME      MAJ:MIN RM  SIZE RO TYPE  MOUNTPOINT
+vda       254:0    0   20G  0 disk  
+├─vda1    254:1    0  300M  0 part  
+└─vda2    254:2    0 19.7G  0 part  
+  └─md127   9:127  0 19.7G  0 raid1 /
+vdb       254:16   0   20G  0 disk  
+├─vdb1    254:17   0  300M  0 part  
+└─vdb2    254:18   0 19.7G  0 part  
+  └─md127   9:127  0 19.7G  0 raid1 /
+```
+
+每块硬盘上都有2个分区，vda1 vdb1各分300M作为EFI分区，vda2 vdb2 组成软RAID1，用作根分区。
+
+在debootstrap释放系统前，需先创建RAID1阵列，使用mdadm管理软raid
+
+```
+mdadm [mode] <raiddevice> [options] <component-devices>
+```
+
+- mode 该命令分成好几个模式，例如创建阵列，
+- raiddevice raid设备节点，例如/dev/md0
+- options 不同模式的参数也不一样
+- component-devices 涉及的块设备，例如/dev/vda2
+
+
+例如创建RAID需要制定的参数有
+- raid-devices 组成RAID有几块硬盘，例如2
+- level RAID阵列的级别，例如raid1
+- name 阵列的别称，他会在/dev/md/name创建对应的节点
+- homehost 阵列的主机标识，用any可以忽略
+
+```
+mdadm --create /dev/md0 --raid-devices 2 --level raid1 --name root --homehost any  /dev/vda2 /dev/vdb2
+```
+
+执行后，查看raid1同步情况，他会复制数据以保证两块硬盘数据相同（这里其实是分区）
+
+```
+cat /proc/mdstat 
+Personalities : [raid1] [linear] [multipath] [raid0] [raid6] [raid5] [raid4] [raid10] 
+md0 : active raid1 vdb2[1] vda2[0]
+      31145984 blocks super 1.2 [2/2] [UU]
+      [>....................]  resync =  2.3% (742720/31145984) finish=2.7min speed=185680K/sec
+```
+
+同步的速度取决于硬盘的读写速度和RAID的大小
+
+未同步完成已经可以操作阵列了，格式化文件系统
+
+```
+mkfs -t ext4 /dev/md0
+```
+
+挂载根分区
+
+```
+mkdir /mnt/root
+mount -t ext4 -o rw /dev/md0 /mnt/root
+```
+
+debootstrap安装过程和非阵列的情况一样，释放基础系统，配置网络，用户。
+
+```
+debootstrap --arch=amd64 --include=linux-image-amd64,systemd,grub-efi-amd64,makedev,locales,vim,openssh-server,sudo,bash-completion,ca-certificates,mdadm bullseye /mnt/root https://opentuna.cn/debian/
+```
+软件包需要包含mdadm，因为mdadm包中有initramfs加载mdraid的脚本，需要打包进去的。
+
+在格式化EFI分区、安装grub的时候有点区别,因为有两个EFI分区
+
+都格式化了
+
+```
+mkfs -t vfat /dev/vda1
+mkfs -t vfat /dev/vdb1
+```
+主要使用vda的EFI分区做引导，vdb1备用，一个个安装grub
+
+```
+mkdir /mnt/root/boot/efi
+mount -t vfat /dev/vda1 /mnt/root/boot/efi/
+```
+
+然后chroot切换到新的根分区
+
+```
+chroot /mnt/root
+```
+
+安装grub
+
+```bash
+grub-install -v --modules="part_gpt part_msdos lvm mdraid09 mdraid1x" --boot-directory=/boot  --efi-directory=/boot/efi --no-uefi-secure-boot  --target=x86_64-efi
+```
+
+因为grub.cfg是在RAID上的，所以编译出来的grubx64.efi需要包含部分模块，他才能载入RAID,并且从RAID里读取其他的grub模块和配置文件，添加到efi文件里的模块用--modules指定。
+
+grub要指定给内核启动参数指定root分区的，因为md设备名称可能会变，还是用uuid区分
+
+查看md0的UUID
+
+```
+root@debian:/boot# blkid /dev/md0 
+/dev/md0: UUID="fcb3b088-d87b-47f9-ab65-dc114683e043" BLOCK_SIZE="4096" TYPE="ext4"
+```
+
+编辑 `/etc/fstab`，改变系统启动后挂载的根分区
+
+```
+UUID=fcb3b088-d87b-47f9-ab65-dc114683e043  /  ext4    errors=remount-ro 0       1
+```
+
+编辑 `/etc/default/grub` 修改内核启动参数
+
+```
+GRUB_CMDLINE_LINUX_DEFAULT='root=UUID="fcb3b088-d87b-47f9-ab65-dc114683e043" init=/usr/bin/systemd ro vga vt'
+```
+
+更新配置
+
+```
+update-grub
+```
+
+因为使用了RAID1，在initramfs阶段，需要使用到一些内核模块，让它在这个阶段配合mdadm脚本能装载md设备。
+
+修改 `/etc/initramfs-tools/modules`，把raid1添加进去，去掉注释 s`#`
+
+```
+# List of modules that you want to include in your initramfs.
+# They will be loaded at boot time in the order below.
+#
+# Syntax:  module_name [args ...]
+#
+# You must run update-initramfs(8) to effect this change.
+#
+# Examples:
+#
+raid1
+# sd_mod
+
+```
+
+更新配置
+
+```
+update-initramfs -u
+```
+
+
+两块盘上都部署EFI分区，并且都装上grub,当启动过程中，任意一个盘掉盘了，另外一个盘上还是允许引导启动系统。
+
+如果在运行过程中掉盘了，系统仍然不会崩溃，并可在线添加硬盘修复RAID阵列降级问题。
+
+如果EFI没有识别启动条目，因为debian安装的引导的路径是`EFI/debian/grubx64.efi`，有些BIOS对UEFI的支持一般，他不会自动寻找其他文件夹的efi文件，导致无法识别启动条目。
+
+- 按规范复制到 `EFI/BOOT/bootx64.efi`
+- 通过efibootmgr,编辑nvram的启动条目，RAID两个硬盘的grub启动条目都新增进去
+
+```
+efibootmgr -v -c -L debian_main -l /EFI/debian/grub.efi -d /dev/vda
+efibootmgr -v -c -L debian_backup -l /EFI/debian/grub.efi -d /dev/vdb
+```
+
+对他们启动顺序进行排序
+
+```
+root@debian:~#  efibootmgr  -o 4,6,2,1
+BootCurrent: 0004
+Timeout: 0 seconds
+BootOrder: 0004,0006,0002,0001
+Boot0000* UiApp
+Boot0001* UEFI Misc Device
+Boot0002* EFI Internal Shell
+Boot0004* debian_main  
+Boot0006* debian_backup
+```
+
+
+
 # 资料参考：
 
 [deboostrap wiki](https://wiki.debian.org/zh_CN/Debootstrap)
@@ -703,3 +978,6 @@ nmtui-hostname
 
 [networkctl 中文手册](http://www.jinbuguo.com/systemd/networkctl.html#)
 
+[mdadm 帮助手册](https://manpages.debian.org/bullseye/mdadm/mdadm.8.en.html)
+
+[linux RAID wiki](https://raid.wiki.kernel.org/index.php/Linux_Raid)
