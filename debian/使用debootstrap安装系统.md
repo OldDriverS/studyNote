@@ -6,7 +6,7 @@
 
 需要额外安装的软件包有
 
-```c
+```
 linux-image-amd64  debian内核镜像包
 systemd  新型的init程序
 grub-efi-amd64  安装efi启动的grub
