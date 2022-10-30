@@ -1,25 +1,41 @@
 # 使用debootstrap安装debian系统笔记
 
+
+## 什么是LiveCD?
+
+Live 安装映像包含一个 Debian 系统，可以在不修改硬盘驱动器上的任何文件的情况下进行启动，并可根据映像内容安装 Debian。
+
+所谓的 live 镜像，或是更精确地称为 live system （实况系统），指的是为 DVD、USB 闪存盘等媒介准备的镜像，含有已预先安装的完整系统。你不需要安装任何东西到硬盘上，相反地你可以直接从媒介（DVD 或 USB 闪存盘）上开机 而且可马上开始工作。所有的程序都直接从媒介上执行。
+
+以上摘录debian的FAQ。
+
 > 当前stable是bullseye,涉及软件包名称无变化，笔记仍然可用。
 
 准备安装镜像：[debian-live-10.9.0-amd64-standard.iso 945M](https://opentuna.cn/debian-cd/10.9.0-live/amd64/iso-hybrid/debian-live-10.9.0-amd64-standard.iso)
 
-需要额外安装的软件包有
+standard 默认无桌面环境，如需要桌面可选带桌面版本的Live
+
+此次方式涉及的其他软件包有：
 
 ```
 linux-image-amd64  debian内核镜像包
 systemd  新型的init程序
 grub-efi-amd64  安装efi启动的grub
 makedev  创建/dev下的设备节点脚本
-locales  语言包
+locales  语言
 vim  文本编辑器
 openssh-server  ssh服务
 sudo  临时授权
-bash-completion  bash Tab补全
-ca-certificates CA证书，https用的
+bash-completion  bash 补全提示
+ca-certificates CA证书，https用到
 ```
 
-前期先制作启动盘，对于支持UEFI启动的PC，直接把iso内容解压到一个fat32格式的U盘根目录即可（保证U盘根目录下有个EFI文件夹），或者使用制作工具把iso制作成u盘启动盘，对于已有的debian系统给别的硬盘安装debian，则单独安装 **bootstrap** 即可。以下以iso基础镜像安装为例的笔记。
+制作USB启动介质：
+
+通过刻录软件将ISO文件写到U盘介质。
+
+对于支持UEFI启动的平台，不借助刻录软件，先将U盘文件系统格式化成FAT32格式，然后将ISOiso内容解压到一个fat32格式的U盘根目录即可（保证U盘根目录下有个EFI文件夹）
+
 
 # 安装思路
 
@@ -31,19 +47,17 @@ ca-certificates CA证书，https用的
 
 - 更换livecd中apt源为国内源
 
-- 从源中获取安装debootstrap及装系统需要的相关软件
+- 从源中获取安装debootstrap及系统安装需要的相关软件
 
-- 在硬盘中，为新的debian系统分区，并创建文件系统
+- 在硬盘中，为新的debian系统分区并创建文件系统
 
-- 挂载文件系统
-
-- deboostrap释放文件
+- 挂载文件系统，并使用deboostrap释放文件
 
 - 通过chroot临时切换到新系统的环境
 
 - 配置新系统
 
-- 安装新系统的grub引导
+- 安装新系统UEFI启动的grub引导
 
 - 保存，卸载分区
 
@@ -56,13 +70,13 @@ ca-certificates CA证书，https用的
 
 ## 1、启动进入临时的debian系统
 
-启动菜单后，进入standard镜像的一个live系统，它是一个没有GUI的临时维护系统，拥有debian的基础软件。启动后选择：
+启动菜单后，进入standard镜像的一个live系统，纯命令行操作，拥有debian的基础软件。启动后选择：
 
 ```
 Debian GNU/Linux Live(kernel xxxxx)
 ```
 
-启动系统后，进入系统，切换root用户：
+启动系统后，切换root用户：
 
 ```bash
 sudo su
@@ -72,11 +86,11 @@ sudo su
 
 ## 2、确认网络状态
 
-一共有三种网络管理软件可供选择
+共有三种网络管理软件可供选择
 
-- systemd-networkd
-- ifupdown
-- NetworkManager
+- systemd-networkd  属于systemd的一部分
+- ifupdown   传统的网管软件
+- NetworkManager  桌面端常用的网管软件
 
 ### 2.1 使用 systemd-networkd 配置网络
 
@@ -92,9 +106,11 @@ root@debian:~# ip link
     link/ether 52:54:00:59:b4:a0 brd ff:ff:ff:ff:ff:ff
 ```
 
-此处找到有2个网卡（序号1和2）lo、enp1s0，mac地址为 **52:54:00:59:b4:a0** 
+有2个网卡（序号1和2）：lo、enp1s0
 
-新建一个systemd网络管理的模板 **/etc/systemd/network/01-lan.network** ，通过MAC地址匹配，这是DHCP分配IP的模板，一个网卡一个配置文件。
+mac地址为 **52:54:00:59:b4:a0** 
+
+新建一个systemd网络管理的模板 **/etc/systemd/network/01-lan.network** ，该配置文件仅通过MAC地址匹配接口。
 
 情况1：使用dhcp分配IP
 
@@ -154,11 +170,11 @@ IDX LINK             TYPE               OPERATIONAL SETUP
 
 ### 2.2 使用networking(ifupdown)配置网络
 
-debian的live镜像使用 **ifupdown** 包的 **networking.service** 管理网络，在DHCP下的路由下自动分配IP比较容易管理。
+live镜像使用 **ifupdown** 包的 **networking.service** 服务管理网络，在DHCP下的路由下自动分配IP比较容易管理。
 
-启动系统后直接就可以通过DHCP获取到IP，如果特殊情况下没有网，或者需要手动管理。
+live系统启动后先通过DHCP获取到IP，如果特殊情况下没有网，可能需要手动管理。
 
-手动配置需要修改 `/etc/network/interfaces`
+修改 `/etc/network/interfaces`
 
 情况1：使用dhcp分配
 
@@ -196,27 +212,26 @@ nameserver 223.5.5.5
 root@debian:~# nano  /etc/apt/sources.list
 ```
 
-替换成opentuna的
+替换成opentuna的， **ctrl+o** 保存文件，**ctrl+x**  退出nano
 
 ```sources.list
 deb http://opentuna/debian/ buster main contrib non-free
 ```
 
- **ctrl+o** 保存文件，**ctrl+x**  退出nano，更新索引
+更新索引
 
 ```bash
 root@debian:~# apt update
 ```
 
-## 4、安装装系统时需要的软件
+## 4、安装系统时需要的软件
 
-debootstrap
 
 ```bash
 root@debian:~# apt install debootstrap dosfstools
 ```
 
-> dosfstools 用于格式化vfat格式分区（EFI分区）
+> dosfstools 用于格式化vfat格式（用于EFI分区）
 >
 > debootstrap 用于安装新系统
 
@@ -224,11 +239,11 @@ root@debian:~# apt install debootstrap dosfstools
 
 ## 5、使用fdisk对硬盘进行分区与格式化
 
- **格式化硬盘前应该备份数据**
+ **注意：格式化硬盘前应该备份数据！！！**
 
 ### 5.1 确定安装系统的硬盘
 
-> 注意，sda是sata接口第一块硬盘，如果安装系统在nvme,则是nvme0n1,如果是虚拟机，半虚拟化硬盘virtio驱动则是vda,不同接口的块设备命名是不一样的，实际情况调整。
+> Tips：sda是sata接口第一块硬盘，如果安装系统在nvme,则是nvme0n1,如果是虚拟机，半虚拟化硬盘virtio驱动则是vda,不同接口的块设备命名是不一样的，根据实际情况调整。
 
 ```bash
 root@debian:/mnt# lsblk
@@ -266,7 +281,7 @@ Local Time is:    Sat Oct 29 11:15:18 2022 CST
 SMART support is: Available - device has SMART capability.
 SMART support is: Enabled
 ```
-以上是一块三星860 EVO 250GB，可以根据硬盘的型号，SN，容量，厂商等，情况区分不同的硬盘，选择一个目的硬盘。
+例如以上是一块三星860 EVO 250GB，可以根据硬盘的型号，SN，容量，厂商等，情况区分不同的硬盘，选择一个目的硬盘。
 
 
 ```
@@ -295,13 +310,6 @@ Partition number (1-128, default 1):
 First sector (2048-104857566, default 2048):
 Last sector, +/-sectors or +/-size{K,M,G,T,P} (2048-104857566, default 104857566): +300M
 
-Created a new partition 1 of type 'Linux filesystem' and of size 300 MiB.
-Partition #1 contains a vfat signature.
-
-Do you want to remove the signature? [Y]es/[N]o: Y
-
-The signature will be removed by a write command.
-
 Command (m for help): t
 Selected partition 1
 Partition type (type L to list all types): 1
@@ -312,7 +320,6 @@ Changed type of partition 'Linux filesystem' to 'EFI System'.
 - 选择分区编号，默认为1，直接回车
 - 选择分区起始扇区，默认为2048，直接回车
 - 选择分区的结束扇区，用+/-可以通过大小来设定，+300M，创建一个300M的分区
-- 由于此前已经创建了一个EFI分区，移除signature
 - t命令更改分区标识，输入1，回车，更改成EFI类型
 
 剩余的空间创建linux根目录的分区
@@ -323,22 +330,12 @@ Partition number (2-128, default 2):
 First sector (616448-104857566, default 616448):
 Last sector, +/-sectors or +/-size{K,M,G,T,P} (616448-104857566, default 104857566):
 
-Created a new partition 2 of type 'Linux filesystem' and of size 49.7 GiB.
-Partition #2 contains a ext4 signature.
-
-Do you want to remove the signature? [Y]es/[N]o: Y
-
-The signature will be removed by a write command.
-
 Command (m for help):
 ```
-
-
 
 - n命令创建主分区，回车
 - 选择分区编号，第二个分区默认为2，直接回车
 - 选择分区的起始扇区和结束扇区，直接回车即可
-- 由于此前已经创建了一个EFI分区，移除signature
 
 ```bash
 Command (m for help): w
@@ -373,18 +370,12 @@ root@debian:/mnt# mkfs.ext4 /dev/sda2
 
 ## 6、挂载分区
 
-在/mnt下创建挂载点，root文件夹为根目录的挂载点
+创建`/mnt/root` 目录作为新系统根分区的临时挂载点，并挂载。
 
 ```bash
 root@debian:/mnt# mkdir /mnt/root
-```
-
-挂载
-
-```bash
 root@debian:/mnt# mount -t ext4 -o defaults,rw /dev/sda2 /mnt/root/
 ```
-
 
 
 ## 7、使用debootstrap下载基本系统并释放文件
@@ -414,19 +405,13 @@ debootstrap wheezy ./wheezy-chroot http://http.debian.net/debian/
 debootstrap --arch=amd64 buster /mnt/root https://opentuna.cn/debian/
 ```
 
-因为需要安装一些软件包，所以包含进去，最终这样的
+新系统需要额外包含一些软件包，所以最终命令是这样的
 
 ```bash
 debootstrap --arch=amd64 --include=linux-image-amd64,systemd,grub-efi-amd64,makedev,locales,vim,openssh-server,sudo,bash-completion,ca-certificates buster /mnt/root https://opentuna.cn/debian/
 ```
 
-也可以用网易云的,如下：
-
-```bash
-debootstrap --arch=amd64 --include=linux-image-amd64,systemd,grub-efi-amd64,makedev,locales,vim,openssh-server,sudo,bash-completion,ca-certificates buster /mnt/root http://mirrors.163.com/debian/
-```
-
- **debootstrap** 执行成功后提示，这个下载过程可能很漫长。
+**debootstrap** 执行成功后提示，这个下载过程可能很漫长，具体看宽带和硬盘。
 
 ````
 I: Base system installed successfully.
@@ -456,8 +441,6 @@ root@debian:/mnt/root# blkid
 ```bash
 root@debian:/mnt/root# vim /mnt/root/etc/fstab
 ```
-
-
 
  **/etc/fstab** 内容如下：**#** 开头的为注释，为后续添加挂载点方便，还是添加一个格式注释。
 
@@ -504,7 +487,7 @@ root@debian:~# apt updateapt update
 root@debian:~#  dpkg-reconfigure locales
 ```
 
-选择语言为 **en_US.UTF-8** 
+选择语言为 **en_US.UTF-8** ，因为tty对中文的支持不好，可以后续再切换成 **zh_CN.utf-8**
 
 
 ## 10、安装引导
@@ -530,7 +513,7 @@ Installation finished. No error reported.
 编辑grub配置文件，该文件会影响update-grub生成/boot/grub/grub.cfg。
 
 ```
-nano vim /etc/default/grub
+nano /etc/default/grub
 ```
 
 修改内核命令行参数，注意root分区的UUID和新系统根分区的uuid相同，指定使用的init,这里使用systemd
@@ -590,7 +573,7 @@ PermitRootLogin yes
 ## 12、卸载文件系统、关闭临时系统
 
 ```bash
-# chroot退出前,磁盘缓存回写，卸载proc、sys、EFI分区
+## chroot退出前,磁盘缓存回写，卸载proc、sys、EFI分区
 root@debian:~# sync
 root@debian:~# sync
 root@debian:~# sync
@@ -598,8 +581,9 @@ root@debian:~# cd /
 root@debian:/# umount /proc
 root@debian:/# umount /sys
 root@debian:/# umount /boot/efi
+root@debian:/# umount /dev
 root@debian:/# exit
-# 退出后
+## 退出chroot后 ##
 root@debian:/mnt/root# cd /
 root@debian:/# umount /mnt/root
 root@debian:/# systemctl poweroff
@@ -742,8 +726,6 @@ systemctl enable NetworkManager
 systemctl start NetworkManager
 ```
 
-
-
 ## NetworkManager 使用
 
 它有以下几个客户端
@@ -779,7 +761,7 @@ nmtui-hostname
 
 # 将系统安装到RAID1上
 
-至少需要2块及以上的硬盘才能组RAID1，其他安装流程是类似的，主要的区别是在引导上。
+至少需要2块及以上的硬盘才能组RAID1，其他安装流程是类似的，主要的区别是在储存结构和系统引导上。
 
 ## 1.储存结构
 
