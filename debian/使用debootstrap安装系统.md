@@ -204,6 +204,12 @@ nameserver 223.5.5.5
 ```
 
 
+注意，配置文件不会被服务自动读取，修改配置后，应该 restart 或者 reload 让服务主动去读取配置,一般选择直接重启服务稳妥。
+
+```
+systemctl restart networking
+```
+
 ## 3、更换软件换源
 
 使用 **nano** 编辑 **/etc/apt/sources.list** 
