@@ -26,7 +26,7 @@ WEST 和 EAST 是我们红帽路由器中连接两个网络的以太网设备的
 
 **qdisc** 是排队规则，它们定义了Linux系统的流量控制接口。它是数据包进入流量控制系统，然后离开到网络设备的地方。有很多种 **qdisc** 供你选择，但我们将重点关注两个最重要的， **tc-htb(8)**  和  **tc-sfq(8)**  ，稍后我们将对此解释。
 
-**class** 是整形（ shaping ）发生的地方。类具有延迟（delay）、丢弃（drop）甚至重新排序（re-order）数据包的能力，这是排队系统的核心。它们引入了一个层次结构，由父类（parent classes）流向子类（child classes）。正是这种结构赋予了工程师定义队列并将它们链接在一起的能力和灵活性。
+**class** 是整形（ shaping ）发生的地方。 **class** 具有延迟（delay）、丢弃（drop）甚至重新排序（re-order）数据包的能力，这是排队系统的核心。它们引入了一个层次结构，由父类（parent classes）流向子类（child classes）。正是这种结构赋予了工程师定义队列并将它们链接在一起的能力和灵活性。
 
 **filter** （过滤器）是您将包定向到 **class** 的方式。 **qdisc** 将定义紧随其后的默认路径，除非 **filter** 覆盖该路径。通过覆盖路径，工程师可以将数据包定向到一个 **class**，该 **class** 可以整形流量。 **filter**  提供了一个灵活的模式匹配系统来识别感兴趣的数据包，然后对它们进行分类。
 
@@ -117,7 +117,7 @@ tc qdisc add dev $device root handle 1: htb default 10
 
 片段1的第2行为每个以太网设备创建根队列（root），顾名思义，它是队列层次结构的顶层。它是内核添加数据包和设备删除数据包的地方。要记住的是，根（root）是包离开队列的地方。它们不会从等级的最底层“下坠”。正是这种上下波动使得“带宽借用”得以发生。
 
-片段1的第2行还建立了一个重要的默认值。后缀 `default 10`将报文流配置为队列id为 `1:10` 。除非 **filter** 干扰，否则这是默认路径，即低优先级队列。
+片段1的第2行还建立了一个重要的默认值。后缀 `default 10`将报文流配置为队列 ID 为 `1:10` 。除非 **filter** 干预，否则这是默认路径，即流量进入低优先级队列。
 
 ```bash
 # 片段2
@@ -127,16 +127,15 @@ tc qdisc add dev $device root handle 1: htb default 10
 # Class 1:20 -- 最高速率高优先级队列
 tc class add dev $device parent 1: classid 1:1 htb rate $maxrate burst 20k
 
-tc class add dev $device parent 1:1 classid 1:10 htb \
-    rate $limited ceil $maxrate burst 20k
+tc class add dev $device parent 1:1 classid 1:10 htb rate $limited ceil $maxrate burst 20k
     
-tc class add dev $device parent 1:1 classid 1:20 htb \
-    rate $maxrate ceil $maxrate burst 20k
+tc class add dev $device parent 1:1 classid 1:20 htb rate $maxrate ceil $maxrate burst 20k
+
 ```
 
-片段2第6行创建了一个id为 `1:1` 的直接在根下的类。这定义了它（ *$device* ）下面所有子队列可用的最大带宽（ *$maxrate* ）。
+片段2第6行，直接在 root 下创建了一个ID为 `1:1` 的的 **class** 。这定义了它（ *$device* ）下面所有子队列可用的最大带宽（ *$maxrate* ）。
 
-片段2第8行定义了id为 `1:10` 的低优先级队列。*cell* 参数的使用定义了它可以从父类（ *parent* ）借多少带宽（ *$maxrate* ）。我们将它设置为尽可能多地借用父节点可用的空闲带宽。
+片段2第8行定义了 ID 为 `1:10` 的低优先级队列。*cell* 参数的使用定义了它可以从父类（ *parent* ）借多少带宽（ *$maxrate* ）。我们将它设置为尽可能多地借用父节点可用的空闲带宽。
 
 片段2第11行定义了id为 `1:20` 的高优先级队列。这个队列具有与它的父队列相同的速率，因此被分配了可用的全部速率（ *$maxrate* ）。
 
@@ -241,7 +240,7 @@ class htb 1:20 parent 1:1 leaf 20: prio 0 rate 20Mbit ceil 20Mbit burst 20Kb cbu
 
 输出分为三个部分，分别对应我们的三个 **class** 。每个部分都标识了 **class** 、它的配置以及自创建以来收集的统计信息。
 
-类层次结构的顶层是类 `1:1` 。通过观察这些统计信息，可以大致了解流经系统的数据包总数。最有用的统计数据是速率，即数据包每秒流出的比特数和 pps ，pps即每秒封包数量（packets per second）。
+**class** 层次结构的顶层是 **class**  `1:1` 。通过观察这些统计信息，可以大致了解流经系统的数据包总数。最有用的统计数据是速率，即数据包每秒流出的比特数和 pps ，pps即每秒封包数量（packets per second）。
 
 观察各个队列也有助于了解网络是如何被使用的。您可以刷新报告并比较连续的调用，以查看队列是如何分配数据包的。
 
@@ -257,7 +256,7 @@ class htb 1:20 parent 1:1 leaf 20: prio 0 rate 20Mbit ceil 20Mbit burst 20Kb cbu
 
 # 我的总结
 
-不仅通过定义filter，将流量划分到某个 **class** ，还有一种方法，通过 **nftables** 中规则修改数据包修改classid，它相关的规则语法在：
+不仅通过定义filter，将流量划分到某个 **class** ，还有一种方法，通过 **nftables** 中规则修改数据包修改tc的classid，它相关的规则语法在：
 
 ```
 meta priority set [tc class id]
@@ -283,7 +282,7 @@ sudo nft 'add chain ip filter OUTPUT {type filter hook output priority filter; p
 sudo nft 'add rule ip filter OUTPUT tcp sport 22 meta priority set 1:20'
 ```
 
-另外一种等价的创建规则的方式，通过 `nft -f  xxx.conf` 执行以下的 xxx.conf 的 nft 脚本，comment为备注，无匹配功能上的作用。
+另外一种等价的创建规则的方式，通过 `nft -f  xxx.conf` 执行以下的 xxx.conf 的 nft 脚本，comment仅仅对规则备注，无匹配方面的作用。
 
 ```
 # xxx.conf内容
@@ -291,25 +290,29 @@ sudo nft 'add rule ip filter OUTPUT tcp sport 22 meta priority set 1:20'
 table ip filter {
 	chain OUTPUT {
 		type filter hook output priority filter; policy accept;
-		tcp sport 22 meta priority set 1:20 comment "ssh流量优先"
-		ip protocol icmp meta priority set 1:20 comment "icmp发包放置优先队列"
-		tcp flags ack meta priority set 1:20 comment "ack发包放置优先队列"
+		tcp sport 22 meta priority set 1:20 counter comment "ssh流量优先"
+		ip protocol icmp meta priority set 1:20 counter comment "icmp发包放置优先队列"
+		tcp flags ack meta priority set 1:20 counter comment "ack发包放置优先队列"
 	}
 }
 ```
 
 以上，我们在 `ip filter` 表 `OUTPUT` 链中添加了一个规则，匹配源端口为22的出口流量 `tcp sport 22`，并修改数据包的tc分类队列 `meta priority set 1:20`。
 
-tc只针对发包的流控，而接收的流量控制，则可以交由nftables控制。
+tc 只针对发包的流控，而接收的流量控制，则可以交由 **nftables** 控制。
 
 对于转发的流量，修改的位置应该是在 FORWARD 钩子上的规则做处理。对于转发的流量，它包含了两部分的：
 
 - 一部分是从外网往本地网络流动
 - 另一部分本地网络往外网流动的
 
+检查防火墙有没有顺利匹配并修改这些流量，可以通过以下命令查看计数器的变化
 
+```bash
+sudo nft list table ip filter
+```
 
-未完..
+如果有变化，防火墙已经在正常工作。剩下的就看 tc 分类相关的。
 
 
 
