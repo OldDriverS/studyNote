@@ -827,13 +827,13 @@ WantedBy=multi-user.target
 sudo systemctl --now enable pppoe
 ```
 
-当然这样LAN下的主机没法直接上网，因为老的nft规则，只是针对wan口做了masqrade，引进了，wan-modem, wan-ppp两个虚拟接口
+当然这样LAN下的主机没法直接上网，因为老的nft规则，只是针对wan口做了masquerade，引进了wan-modem, wan-ppp两个虚拟接口
 
-所以要进行修改新的规则以适应实际情况
+所以要进行修改新的规则以适应实际情况。
 
 ppp0网络接口是拨号后创建的，它在系统运行期间,因为pppoe重新拨号可能会丢接口，如果此时使用iif，它找不到这个网口，会报错，所以iif用iifname代替，匹配网络接口名的字符串。
 
-wiki描述，iif效率更高一些，实际使用起来问题不大。
+wiki描述，iif效率更高一些，实际使用起来，因流量较少，可以忽略影响。
 
 ```
 table ip nat {
